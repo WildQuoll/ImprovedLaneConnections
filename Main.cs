@@ -21,9 +21,14 @@ namespace ImprovedLaneConnections
 
         public static void DebugMessage(string msg)
         {
-            //#if DEBUG
-            Debug.Log(msg);
-            //#endif
+#if DEBUG
+            Debug.Log("WQ.ILC: " + msg);
+#endif
+        }
+
+        public static void ErrorMessage(string msg)
+        {
+            Debug.Log("WQ.ILC: " + msg);
         }
     }
 }
