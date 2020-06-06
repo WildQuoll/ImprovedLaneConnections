@@ -618,14 +618,15 @@ namespace ImprovedLaneConnections
 
             // Position -> lane ID, sorted by postion (unlike ___m_info.m_lanes which may not be)
             var forwardVehicleLanes = new SortedDictionary<float, uint>();
-            var backwardVehicleLaneIds = new SortedDictionary<float, uint>();
+            var backwardVehicleLanes = new SortedDictionary<float, uint>();
 
             uint laneId = data.m_lanes;
             foreach (var lane in ___m_info.m_lanes)
             {
                 bool isVehicleLane = (lane.m_laneType & vehicleLaneTypes) != 0;
-                if (!isVehicleLane)
+                if (!isVehicleLane || lane.m_vehicleType != VehicleInfo.VehicleType.Car)
                 {
+                    // Pedestrian lanes, parking lanes, bicycle lanes etc. - ignore
                     laneId = netManager.m_lanes.m_buffer[laneId].m_nextLane;
                     continue;
                 }
@@ -634,11 +635,25 @@ namespace ImprovedLaneConnections
 
                 if (isForwardDirection)
                 {
-                    forwardVehicleLanes.Add(lane.m_position, laneId);
+                    if (forwardVehicleLanes.ContainsKey(lane.m_position))
+                    {
+                        Mod.ErrorMessage("Segment " + segmentID + " lane " + laneId + " has the same position as another lane and will be skipped");
+                    }
+                    else
+                    {
+                        forwardVehicleLanes.Add(lane.m_position, laneId);
+                    }
                 }
                 else
                 {
-                    backwardVehicleLaneIds.Add(-lane.m_position, laneId);
+                    if (backwardVehicleLanes.ContainsKey(lane.m_position))
+                    {
+                        Mod.ErrorMessage("Segment " + segmentID + " lane " + laneId + " has the same position as another lane and will be skipped");
+                    }
+                    else
+                    {
+                        backwardVehicleLanes.Add(-lane.m_position, laneId);
+                    }
                 }
 
                 laneId = netManager.m_lanes.m_buffer[laneId].m_nextLane;
@@ -664,7 +679,7 @@ namespace ImprovedLaneConnections
                 }
             }
 
-            if (backwardVehicleLaneIds.Count > 0)
+            if (backwardVehicleLanes.Count > 0)
             {
                 var actualEndNode = invertedSegment ? endNode : startNode; // other way around than for forward lanes
 
@@ -672,7 +687,7 @@ namespace ImprovedLaneConnections
                 {
                     var nodeID = invertedSegment ? data.m_endNode : data.m_startNode;
                     var outVector = invertedSegment ? -data.m_endDirection : -data.m_startDirection;
-                    var sortedLaneIds = ToList(backwardVehicleLaneIds);
+                    var sortedLaneIds = ToList(backwardVehicleLanes);
                     AssignLanes(sortedLaneIds, outVector, data, segmentID, nodeID, actualEndNode);
                 }
             }
