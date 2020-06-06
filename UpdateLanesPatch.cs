@@ -624,7 +624,8 @@ namespace ImprovedLaneConnections
             foreach (var lane in ___m_info.m_lanes)
             {
                 bool isVehicleLane = (lane.m_laneType & vehicleLaneTypes) != 0;
-                if (!isVehicleLane || lane.m_vehicleType != VehicleInfo.VehicleType.Car)
+                bool isCarLane = (lane.m_vehicleType & VehicleInfo.VehicleType.Car) != 0;
+                if (!isVehicleLane || !isCarLane)
                 {
                     // Pedestrian lanes, parking lanes, bicycle lanes etc. - ignore
                     laneId = netManager.m_lanes.m_buffer[laneId].m_nextLane;
