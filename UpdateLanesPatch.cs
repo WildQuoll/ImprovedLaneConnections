@@ -647,7 +647,7 @@ namespace ImprovedLaneConnections
                 }
                 else
                 {
-                    if (backwardVehicleLanes.ContainsKey(lane.m_position))
+                    if (backwardVehicleLanes.ContainsKey(-lane.m_position))
                     {
                         Mod.ErrorMessage("Segment " + segmentID + " lane " + laneId + " has the same position as another lane and will be skipped");
                     }
