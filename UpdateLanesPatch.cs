@@ -20,7 +20,7 @@ namespace ImprovedLaneConnections
         // Lane directions - Left, Forward and/or Right. Determines the displayed arrow(s), but does not directly affect traffic
         public NetLane.Flags direction;
 
-        // Indices of the outgoing lanes on the end junction, which this lane connects to (leftmost lane is 0 in RHT).
+        // Indices of the outgoing lanes on the end junction, which this lane connects to (leftmost lane is 0, both in LHT and RHT, then increases clockwise).
         public byte firstTarget;
         public byte lastTarget; // inclusive, unlike NetLane.m_lastTarget which is exclusive
 
@@ -168,6 +168,16 @@ namespace ImprovedLaneConnections
             return lanesInfo;
         }
 
+        private static string ToString(List< LaneInfo > lanesInfo)
+        {
+            string s = "";
+            foreach(var laneInfo in lanesInfo)
+            {
+                s += laneInfo.ToString() + "\n";
+            }
+            return s;
+        }
+
         class LaneSetupFeatures
         {
             // False if minimum requirements aren't met. Other members may not be initialised in that case.
@@ -190,9 +200,9 @@ namespace ImprovedLaneConnections
             public bool IsBetterThan(LaneSetupFeatures other, bool lht)
             {
                 // Invalid lane setups should never be used.
-                if (!valid)
+                if (valid != other.valid)
                 {
-                    return false;
+                    return valid;
                 }
 
                 // Avoid L+F+R lanes if possible.
@@ -283,13 +293,26 @@ namespace ImprovedLaneConnections
                 // equivalent
                 return false;
             }
+
+            public override string ToString()
+            {
+                return "Is valid: " + valid + "\n"
+                    + "Has LFR lane: " + hasLeftFwdRightLane + "\n"
+                    + "Has LF lane: " + hasLeftFwdLane + "\n"
+                    + "Has LR lane: " + hasLeftRightLane + "\n"
+                    + "Has FR lane: " + hasFwdRightLane + "\n"
+                    + "All Fwd lanes: " + numFwdLanes + "\n"
+                    + "Fwd imbalance: " + fwdConnectionImbalance + "\n"
+                    + "L imbalance: " + leftConnectionImbalance + "\n"
+                    + "R imbalance: " + rightConnectionImbalance + "\n"
+                    + "L/R out/in imbalance: " + leftRightOutInRatioImbalance;
+            }
         }
 
         // Identifies all features of a lane setup, which may be needed to determine which setup is best.
         private static LaneSetupFeatures EvaluateLaneSetup(List<LaneInfo> lanesInfo, List<NetLane.Flags> outLanes, bool lht)
         {
             var features = new LaneSetupFeatures();
-
             // If two in lanes with the same direction (e.g. two forward-only lanes) connect to a different
             // number of out lanes, the lane with more connections MUST be to the left (LHT: right) of the other lane.
             if (lht)
@@ -406,8 +429,8 @@ namespace ImprovedLaneConnections
                     }
                 }
 
-                float leftOutInRatio = numLeftOutLanes / numLeftInLanes;
-                float rightOutInRatio = numRightOutLanes / numRightOutLanes;
+                float leftOutInRatio = (float)numLeftOutLanes / numLeftInLanes;
+                float rightOutInRatio = (float)numRightOutLanes / numRightInLanes;
 
                 features.leftRightOutInRatioImbalance = Math.Max(leftOutInRatio, rightOutInRatio) / Math.Min(leftOutInRatio, rightOutInRatio);
             }
@@ -503,13 +526,18 @@ namespace ImprovedLaneConnections
             List<LaneInfo> bestLanesInfo = GetLaneSetup(outLanes, possibleLaneArrangements[0]);
             LaneSetupFeatures bestFeatures = EvaluateLaneSetup(bestLanesInfo, outLanes, lht);
 
+            Mod.DebugMessage("Initial setup:\n" + ToString(bestLanesInfo) + "\nevaluated as:\n" + bestFeatures.ToString());
+
             for (int i = 1; i < possibleLaneArrangements.Count; ++i)
             {
                 var lanesInfo = GetLaneSetup(outLanes, possibleLaneArrangements[i]);
                 var features = EvaluateLaneSetup(lanesInfo, outLanes, lht);
 
+                Mod.DebugMessage(ToString(lanesInfo) + "\nevaluated as:\n" + features.ToString());
+
                 if (features.IsBetterThan(bestFeatures, lht))
                 {
+                    Mod.DebugMessage("This is better than previous best");
                     bestFeatures = features;
                     bestLanesInfo = lanesInfo;
                 }
