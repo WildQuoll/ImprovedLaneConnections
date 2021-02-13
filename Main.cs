@@ -19,14 +19,7 @@ namespace ImprovedLaneConnections
             if (HarmonyHelper.IsHarmonyInstalled) Patcher.UnpatchAll();
         }
 
-        public static void DebugMessage(string msg)
-        {
-#if DEBUG
-            Debug.Log("WQ.ILC: " + msg);
-#endif
-        }
-
-        public static void ErrorMessage(string msg)
+        public static void LogMessage(string msg)
         {
             Debug.Log("WQ.ILC: " + msg);
         }

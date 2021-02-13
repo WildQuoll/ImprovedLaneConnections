@@ -526,18 +526,18 @@ namespace ImprovedLaneConnections
             List<LaneInfo> bestLanesInfo = GetLaneSetup(outLanes, possibleLaneArrangements[0]);
             LaneSetupFeatures bestFeatures = EvaluateLaneSetup(bestLanesInfo, outLanes, lht);
 
-            Mod.DebugMessage("Initial setup:\n" + ToString(bestLanesInfo) + "\nevaluated as:\n" + bestFeatures.ToString());
+            // Mod.LogMessage("Initial setup:\n" + ToString(bestLanesInfo) + "\nevaluated as:\n" + bestFeatures.ToString());
 
             for (int i = 1; i < possibleLaneArrangements.Count; ++i)
             {
                 var lanesInfo = GetLaneSetup(outLanes, possibleLaneArrangements[i]);
                 var features = EvaluateLaneSetup(lanesInfo, outLanes, lht);
 
-                Mod.DebugMessage(ToString(lanesInfo) + "\nevaluated as:\n" + features.ToString());
+                // Mod.LogMessage(ToString(lanesInfo) + "\nevaluated as:\n" + features.ToString());
 
                 if (features.IsBetterThan(bestFeatures, lht))
                 {
-                    Mod.DebugMessage("This is better than previous best");
+                    // Mod.LogMessage("This is better than previous best");
                     bestFeatures = features;
                     bestLanesInfo = lanesInfo;
                 }
@@ -546,7 +546,7 @@ namespace ImprovedLaneConnections
             if (!bestFeatures.valid)
             {
                 // Impossible (in theory)
-                Mod.ErrorMessage("Selected setup does not meet minimum requirements! "
+                Mod.LogMessage("Selected setup does not meet minimum requirements! "
                     + string.Join(", ", bestLanesInfo.Select(x => x.ToString()).ToArray())
                     + "Lanes in: " + inLanes
                     + "Lanes out: " + leftOut + "L/" + forwardOut + "F/" + rightOut + "R");
@@ -573,42 +573,195 @@ namespace ImprovedLaneConnections
             }
         }
 
+        class LaneDirections
+        {
+            public int sharpLeft = 0;
+            public int left = 0;
+            public int forward = 0;
+            public int right = 0;
+            public int sharpRight = 0;
+        }
+
+        // Adapted from NetSegment.CountLanes 
+        private static void CountSegmentLanes(NetSegment segment,
+                                              NetInfo.Direction direction,
+                                              NetInfo.LaneType laneTypes,
+                                              VehicleInfo.VehicleType vehicleTypes, 
+                                              Vector3 directionVector, 
+                                              ref LaneDirections laneDirs)
+        {
+            if (segment.m_flags == NetSegment.Flags.None)
+            {
+                return;
+            }
+
+            if (segment.Info == null || segment.Info.m_lanes == null)
+            {
+                return;
+            }
+
+            const float sharpAngleThresholdDeg = 50.1f;
+            const float sharpRightThresholdDeg = 180.0f - sharpAngleThresholdDeg;
+            const float sharpLeftThresholdDeg = -sharpRightThresholdDeg;
+            const float rightThresholdDeg = 30.1f; // The base game threshold is 30
+            const float leftThresholdDeg = -30.1f;
+
+            Vector3 vector = (direction == NetInfo.Direction.Forward) ? segment.m_startDirection : segment.m_endDirection;
+
+            float dot = vector.x * directionVector.x + vector.z * directionVector.z;
+            float det = vector.x * directionVector.z - vector.z * directionVector.x;
+            float angleDeg = Mathf.Atan2(det, dot) * 180.0f / Mathf.PI;
+
+            foreach (NetInfo.Lane lane in segment.Info.m_lanes)
+            {
+                if ( !lane.CheckType(laneTypes, vehicleTypes) )
+                {
+                    continue;
+                }
+                NetInfo.Direction laneDirection = lane.m_finalDirection;
+                if ((segment.m_flags & NetSegment.Flags.Invert) != 0)
+                {
+                    laneDirection = NetInfo.InvertDirection(laneDirection);
+                }
+
+                if ( (laneDirection & direction) != 0 )
+                {
+                    if (angleDeg < sharpLeftThresholdDeg)
+                    {
+                        laneDirs.sharpLeft++;
+                    }
+                    else if (angleDeg <= leftThresholdDeg)
+                    {
+                        laneDirs.left++;
+                    }
+                    else if (angleDeg > sharpRightThresholdDeg)
+                    {
+                        laneDirs.sharpRight++;
+                    }
+                    else if (angleDeg >= rightThresholdDeg)
+                    {
+                        laneDirs.right++;
+                    }
+                    else
+                    {
+                        laneDirs.forward++;
+                    }
+                }
+            }
+        }
+
+        // Adapted from NetNode.CountLanes
+        private static LaneDirections CountNodeLanes(NetNode node, 
+                                                     ushort nodeID, 
+                                                     ushort ignoreSegment, 
+                                                     NetInfo.Direction direction, 
+                                                     NetInfo.LaneType laneTypes, 
+                                                     VehicleInfo.VehicleType vehicleTypes,
+                                                     Vector3 directionVector)
+        {
+            var laneDirs = new LaneDirections();
+
+            if (node.m_flags == NetNode.Flags.None)
+            {
+                return laneDirs;
+            }
+            NetManager instance = Singleton<NetManager>.instance;
+            for (int i = 0; i < 8; i++)
+            {
+                ushort segment = node.GetSegment(i);
+                if (segment == 0 || segment == ignoreSegment)
+                {
+                    continue;
+                }
+                NetInfo.Direction actualDirection = direction;
+                if (instance.m_segments.m_buffer[segment].m_endNode == nodeID)
+                {
+                    switch (actualDirection)
+                    {
+                        case NetInfo.Direction.Forward:
+                            actualDirection = NetInfo.Direction.Backward;
+                            break;
+                        case NetInfo.Direction.Backward:
+                            actualDirection = NetInfo.Direction.Forward;
+                            break;
+                    }
+                }
+                CountSegmentLanes(instance.m_segments.m_buffer[segment], actualDirection, laneTypes, vehicleTypes, directionVector, ref laneDirs);
+            }
+
+            return laneDirs;
+        }
+
+        private static void AccountForSharpTurnLanes(ref List<LaneInfo> lanesInfo, byte sharpLeftLanes, byte sharpRightLanes)
+        {
+            if (sharpLeftLanes > 0)
+            {
+                for (int i = 0; i < lanesInfo.Count; ++i)
+                {
+                    var laneInfo = lanesInfo[i];
+                    laneInfo.firstTarget += sharpLeftLanes;
+                    laneInfo.lastTarget += sharpLeftLanes;
+                }
+                lanesInfo[0].firstTarget = 0;
+                lanesInfo[0].direction |= NetLane.Flags.Left;
+            }
+
+            if (sharpRightLanes > 0)
+            {
+                lanesInfo[lanesInfo.Count - 1].lastTarget += sharpRightLanes;
+                lanesInfo[lanesInfo.Count - 1].direction |= NetLane.Flags.Right;
+            }
+        }
+
         private static void AssignLanes(List< uint > laneIds, Vector3 outVector, NetSegment data, ushort segmentID, ushort nodeID, NetNode junctionNode)
         {
-            int numLanes = laneIds.Count;
+            var outLaneDirs = CountNodeLanes(junctionNode,
+                                             nodeID,
+                                             segmentID,
+                                             NetInfo.Direction.Forward,
+                                             vehicleLaneTypes,
+                                             VehicleInfo.VehicleType.Car,
+                                             outVector);
 
-            int leftOut = 0;
-            int forwardOut = 0;
-            int rightOut = 0;
-            int irrelevant = 0;
-
-            var direction = NetInfo.Direction.Forward; // direction of lanes we are counting
-            junctionNode.CountLanes(nodeID,
-                                    segmentID, 
-                                    direction, 
-                                    vehicleLaneTypes,
-                                    VehicleInfo.VehicleType.Car,
-                                    outVector,
-                                    ref leftOut, ref forwardOut, ref rightOut,
-                                    ref irrelevant, ref irrelevant, ref irrelevant);
-
-            if (leftOut + forwardOut + rightOut == 0)
+            int connectableLaneCount = outLaneDirs.left + outLaneDirs.forward + outLaneDirs.right;
+            int totalLaneCount = connectableLaneCount + outLaneDirs.sharpLeft + outLaneDirs.sharpRight;
+            if (totalLaneCount == 0)
             {
                 // This can happen if multiple one-way roads meet creating a dead end.
                 return;
             }
 
-            List<LaneInfo> lanesInfo = AssignLanes(laneIds.Count, leftOut, forwardOut, rightOut);
-
             NetManager netManager = Singleton<NetManager>.instance;
+
+            // If the number of connectable lanes is lower than the number of incoming lanes, sharp left/right lanes re-assign some or all of them into "normal" left/right.
+            while (laneIds.Count > connectableLaneCount && connectableLaneCount != totalLaneCount)
+            {
+                if (outLaneDirs.sharpLeft >= outLaneDirs.sharpRight)
+                {
+                    outLaneDirs.sharpLeft -= 1;
+                    outLaneDirs.left += 1;
+                }
+                else
+                {
+                    outLaneDirs.sharpRight -= 1;
+                    outLaneDirs.right += 1;
+                }
+
+                connectableLaneCount += 1;
+            }
+
+            List<LaneInfo> lanesInfo = AssignLanes(laneIds.Count, outLaneDirs.left, outLaneDirs.forward, outLaneDirs.right);
+
+            AccountForSharpTurnLanes(ref lanesInfo, (byte)outLaneDirs.sharpLeft, (byte)outLaneDirs.sharpRight);
+            
             for (int i = 0; i < laneIds.Count; ++i)
             {
                 var laneInfo = lanesInfo[i];
                 var laneId = laneIds[i];
 
-                // Note: NetLane is a value type
+                // Note: NetLane is a value type 
 
-                netManager.m_lanes.m_buffer[laneId].m_firstTarget = laneInfo.firstTarget;
+                netManager.m_lanes.m_buffer[laneId].m_firstTarget = (byte)(laneInfo.firstTarget);
                 netManager.m_lanes.m_buffer[laneId].m_lastTarget = (byte)(laneInfo.lastTarget + 1);
 
                 NetLane.Flags flags = (NetLane.Flags)netManager.m_lanes.m_buffer[laneId].m_flags;
@@ -666,7 +819,7 @@ namespace ImprovedLaneConnections
                 {
                     if (forwardVehicleLanes.ContainsKey(lane.m_position))
                     {
-                        Mod.ErrorMessage("Segment " + segmentID + " lane " + laneId + " has the same position as another lane and will be skipped");
+                        Mod.LogMessage("Segment " + segmentID + " lane " + laneId + " has the same position as another lane and will be skipped");
                     }
                     else
                     {
@@ -677,7 +830,7 @@ namespace ImprovedLaneConnections
                 {
                     if (backwardVehicleLanes.ContainsKey(-lane.m_position))
                     {
-                        Mod.ErrorMessage("Segment " + segmentID + " lane " + laneId + " has the same position as another lane and will be skipped");
+                        Mod.LogMessage("Segment " + segmentID + " lane " + laneId + " has the same position as another lane and will be skipped");
                     }
                     else
                     {
