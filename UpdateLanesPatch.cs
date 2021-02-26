@@ -8,6 +8,15 @@ using UnityEngine;
 
 namespace ImprovedLaneConnections
 {
+    class LaneDirections
+    {
+        public int sharpLeft = 0;
+        public int left = 0;
+        public int forward = 0;
+        public int right = 0;
+        public int sharpRight = 0;
+    }
+
     class LaneInfo
     {
         public LaneInfo(NetLane.Flags direction, byte firstTarget, byte lastTarget)
@@ -29,6 +38,137 @@ namespace ImprovedLaneConnections
         public override string ToString() { return direction.ToString() + " (lanes: " + firstTarget + " to " + lastTarget + ")"; }
     }
 
+    class LaneSetupFeatures
+    {
+        // False if minimum requirements aren't met. Other members may not be initialised in that case.
+        public bool valid = true;
+
+        public bool hasLeftFwdRightLane = false;
+        public bool hasLeftFwdLane = false;
+        public bool hasLeftRightLane = false;
+        public bool hasFwdRightLane = false;
+        public int numFwdLanes = 0; // how many lanes have a fwd direction (incl. fwd + left, fwd + right, fwd + l + r)
+        public int fwdConnectionImbalance = 0; // difference between min and max number of fwd connections among all lanes with fwd direction (incl. those with mixed directions)
+        public int leftConnectionImbalance = 0; // as above but for left
+        public int rightConnectionImbalance = 0; // as above but for right
+
+        // (Left out / Left in) / (Right out / Right in). Inverted if < 1 (to become >= 1). Irrelevant if left and/or right turning lanes are not present.
+        // The higher the value the more "unfair" the distribution of left and right turning lanes is.
+        public float leftRightOutInRatioImbalance = 1.0f;
+
+        // Returns true if the lane setup described by this object is preferred over 'other'.
+        public bool IsBetterThan(LaneSetupFeatures other, bool lht)
+        {
+            // Invalid lane setups should never be used.
+            if (valid != other.valid)
+            {
+                return valid;
+            }
+
+            // Avoid L+F+R lanes if possible.
+            if (hasLeftFwdRightLane != other.hasLeftFwdRightLane)
+            {
+                return !hasLeftFwdRightLane;
+            }
+
+            // Avoid L+R if possible.
+            if (hasLeftRightLane != other.hasLeftRightLane)
+            {
+                return !hasLeftRightLane;
+            }
+
+            if (lht) // Swapped compared to RHT
+            {
+                if (hasFwdRightLane != other.hasFwdRightLane)
+                {
+                    return !hasFwdRightLane;
+                }
+
+                if (hasLeftFwdLane != other.hasLeftFwdLane)
+                {
+                    return !hasLeftFwdLane;
+                }
+            }
+            else
+            {
+                // Avoid L+F lanes if possible.
+                if (hasLeftFwdLane != other.hasLeftFwdLane)
+                {
+                    return !hasLeftFwdLane;
+                }
+
+                // Avoid F+R lanes if possible.
+                if (hasFwdRightLane != other.hasFwdRightLane)
+                {
+                    return !hasFwdRightLane;
+                }
+            }
+
+            // Prefer setups with a larger number of incoming lanes with forward direction (i.e. limit lane splitting on forward connections).
+            if (numFwdLanes != other.numFwdLanes)
+            {
+                return numFwdLanes > other.numFwdLanes;
+            }
+
+            // Prefer setups where the number of forward connections is (more) evenly distributed among incoming lanes (including L+F and F+R lanes).
+            if (fwdConnectionImbalance != other.fwdConnectionImbalance)
+            {
+                return fwdConnectionImbalance < other.fwdConnectionImbalance;
+            }
+
+            if (lht) // Swapped compared to RHT
+            {
+                if ((rightConnectionImbalance < 2) != (other.rightConnectionImbalance < 2))
+                {
+                    return rightConnectionImbalance < 2;
+                }
+
+                if ((leftConnectionImbalance < 2) != (other.leftConnectionImbalance < 2))
+                {
+                    return leftConnectionImbalance < 2;
+                }
+            }
+            else
+            {
+                // Prefer setups where the number of left connections is (more) evenly distributed among incoming lanes (including L+F and L+R lanes).
+                // Difference of 1 is OK. In practice, we are only trying to avoid imbalance between Left-only lanes and Left+Fwd or Left+Right lanes.
+                if ((leftConnectionImbalance < 2) != (other.leftConnectionImbalance < 2))
+                {
+                    return leftConnectionImbalance < 2;
+                }
+
+                // As above, but for right-turning lanes.
+                if ((rightConnectionImbalance < 2) != (other.rightConnectionImbalance < 2))
+                {
+                    return rightConnectionImbalance < 2;
+                }
+            }
+
+            // Prefer setups where left and right turning lanes are (more) proportionally distributed
+            if (leftRightOutInRatioImbalance != other.leftRightOutInRatioImbalance)
+            {
+                return leftRightOutInRatioImbalance < other.leftRightOutInRatioImbalance;
+            }
+
+            // equivalent
+            return false;
+        }
+
+        public override string ToString()
+        {
+            return "Is valid: " + valid + "\n"
+                + "Has LFR lane: " + hasLeftFwdRightLane + "\n"
+                + "Has LF lane: " + hasLeftFwdLane + "\n"
+                + "Has LR lane: " + hasLeftRightLane + "\n"
+                + "Has FR lane: " + hasFwdRightLane + "\n"
+                + "All Fwd lanes: " + numFwdLanes + "\n"
+                + "Fwd imbalance: " + fwdConnectionImbalance + "\n"
+                + "L imbalance: " + leftConnectionImbalance + "\n"
+                + "R imbalance: " + rightConnectionImbalance + "\n"
+                + "L/R out/in imbalance: " + leftRightOutInRatioImbalance;
+        }
+    }
+
     [HarmonyPriority(Priority.High)] // Higher than TMPE - hopefully enough to ensure compatibility
     [HarmonyPatch(typeof(RoadBaseAI), "UpdateLanes")]
     public static class UpdateLanesPatch
@@ -36,7 +176,7 @@ namespace ImprovedLaneConnections
         private const NetInfo.LaneType vehicleLaneTypes = NetInfo.LaneType.Vehicle | NetInfo.LaneType.TransportVehicle;
         private const NetLane.Flags noDirections = ~NetLane.Flags.LeftForwardRight;
 
-        private static List<NetLane.Flags> GetLaneList(int left, int forward, int right)
+        private static List<NetLane.Flags> CreateLaneList(int left, int forward, int right)
         {
             var laneList = new List<NetLane.Flags>();
 
@@ -176,137 +316,6 @@ namespace ImprovedLaneConnections
                 s += laneInfo.ToString() + "\n";
             }
             return s;
-        }
-
-        class LaneSetupFeatures
-        {
-            // False if minimum requirements aren't met. Other members may not be initialised in that case.
-            public bool valid = true;
-
-            public bool hasLeftFwdRightLane = false;
-            public bool hasLeftFwdLane = false;
-            public bool hasLeftRightLane = false;
-            public bool hasFwdRightLane = false;
-            public int numFwdLanes = 0; // how many lanes have a fwd direction (incl. fwd + left, fwd + right, fwd + l + r)
-            public int fwdConnectionImbalance = 0; // difference between min and max number of fwd connections among all lanes with fwd direction (incl. those with mixed directions)
-            public int leftConnectionImbalance = 0; // as above but for left
-            public int rightConnectionImbalance = 0; // as above but for right
-
-            // (Left out / Left in) / (Right out / Right in). Inverted if < 1 (to become >= 1). Irrelevant if left and/or right turning lanes are not present.
-            // The higher the value the more "unfair" the distribution of left and right turning lanes is.
-            public float leftRightOutInRatioImbalance = 1.0f;
-
-            // Returns true if the lane setup described by this object is preferred over 'other'.
-            public bool IsBetterThan(LaneSetupFeatures other, bool lht)
-            {
-                // Invalid lane setups should never be used.
-                if (valid != other.valid)
-                {
-                    return valid;
-                }
-
-                // Avoid L+F+R lanes if possible.
-                if (hasLeftFwdRightLane != other.hasLeftFwdRightLane)
-                {
-                    return !hasLeftFwdRightLane;
-                }
-
-                // Avoid L+R if possible.
-                if (hasLeftRightLane != other.hasLeftRightLane)
-                {
-                    return !hasLeftRightLane;
-                }
-
-                if (lht) // Swapped compared to RHT
-                {
-                    if (hasFwdRightLane != other.hasFwdRightLane)
-                    {
-                        return !hasFwdRightLane;
-                    }
-
-                    if (hasLeftFwdLane != other.hasLeftFwdLane)
-                    {
-                        return !hasLeftFwdLane;
-                    }
-                }
-                else
-                {
-                    // Avoid L+F lanes if possible.
-                    if (hasLeftFwdLane != other.hasLeftFwdLane)
-                    {
-                        return !hasLeftFwdLane;
-                    }
-
-                    // Avoid F+R lanes if possible.
-                    if (hasFwdRightLane != other.hasFwdRightLane)
-                    {
-                        return !hasFwdRightLane;
-                    }
-                }
-
-                // Prefer setups with a larger number of incoming lanes with forward direction (i.e. limit lane splitting on forward connections).
-                if (numFwdLanes != other.numFwdLanes)
-                {
-                    return numFwdLanes > other.numFwdLanes;
-                }
-
-                // Prefer setups where the number of forward connections is (more) evenly distributed among incoming lanes (including L+F and F+R lanes).
-                if (fwdConnectionImbalance != other.fwdConnectionImbalance)
-                {
-                    return fwdConnectionImbalance < other.fwdConnectionImbalance;
-                }
-
-                if (lht) // Swapped compared to RHT
-                {
-                    if ((rightConnectionImbalance < 2) != (other.rightConnectionImbalance < 2))
-                    {
-                        return rightConnectionImbalance < 2;
-                    }
-
-                    if ((leftConnectionImbalance < 2) != (other.leftConnectionImbalance < 2))
-                    {
-                        return leftConnectionImbalance < 2;
-                    }
-                }
-                else
-                {
-                    // Prefer setups where the number of left connections is (more) evenly distributed among incoming lanes (including L+F and L+R lanes).
-                    // Difference of 1 is OK. In practice, we are only trying to avoid imbalance between Left-only lanes and Left+Fwd or Left+Right lanes.
-                    if ((leftConnectionImbalance < 2) != (other.leftConnectionImbalance < 2))
-                    {
-                        return leftConnectionImbalance < 2;
-                    }
-
-                    // As above, but for right-turning lanes.
-                    if ((rightConnectionImbalance < 2) != (other.rightConnectionImbalance < 2))
-                    {
-                        return rightConnectionImbalance < 2;
-                    }
-                }
-
-                // Prefer setups where left and right turning lanes are (more) proportionally distributed
-                if (leftRightOutInRatioImbalance != other.leftRightOutInRatioImbalance)
-                {
-                    return leftRightOutInRatioImbalance < other.leftRightOutInRatioImbalance;
-                }
-
-                // equivalent
-                return false;
-            }
-
-            public override string ToString()
-            {
-                return "Is valid: " + valid + "\n"
-                    + "Has LFR lane: " + hasLeftFwdRightLane + "\n"
-                    + "Has LF lane: " + hasLeftFwdLane + "\n"
-                    + "Has LR lane: " + hasLeftRightLane + "\n"
-                    + "Has FR lane: " + hasFwdRightLane + "\n"
-                    + "All Fwd lanes: " + numFwdLanes + "\n"
-                    + "Fwd imbalance: " + fwdConnectionImbalance + "\n"
-                    + "L imbalance: " + leftConnectionImbalance + "\n"
-                    + "R imbalance: " + rightConnectionImbalance + "\n"
-                    + "L/R out/in imbalance: " + leftRightOutInRatioImbalance;
-            }
         }
 
         // Identifies all features of a lane setup, which may be needed to determine which setup is best.
@@ -468,7 +477,7 @@ namespace ImprovedLaneConnections
         // For junctions with more incoming (in) lanes than outgoing (out) lanes.
         private static List<LaneInfo> AssignLanesMoreInThanOut(int numLanes, int leftOut, int forwardOut, int rightOut)
         {
-            var outLanes = GetLaneList(leftOut, forwardOut, rightOut);
+            var outLanes = CreateLaneList(leftOut, forwardOut, rightOut);
 
             int minInLanesPerOutLane = numLanes / outLanes.Count;
             int extraInLanes = numLanes % outLanes.Count;
@@ -517,7 +526,7 @@ namespace ImprovedLaneConnections
         // For junctions with more outgoing (out) lanes than incoming (in) lanes.
         private static List<LaneInfo> AssignLanesMoreOutThanIn(int inLanes, int leftOut, int forwardOut, int rightOut)
         {
-            List< NetLane.Flags > outLanes = GetLaneList(leftOut, forwardOut, rightOut);
+            List< NetLane.Flags > outLanes = CreateLaneList(leftOut, forwardOut, rightOut);
 
             List< List< int > > possibleLaneArrangements = GetAllPossibleLaneConfigurations(inLanes, outLanes.Count);
 
@@ -571,15 +580,6 @@ namespace ImprovedLaneConnections
             {
                 return AssignLanesMoreOutThanIn(inLanes, leftOut, forwardOut, rightOut);
             }
-        }
-
-        class LaneDirections
-        {
-            public int sharpLeft = 0;
-            public int left = 0;
-            public int forward = 0;
-            public int right = 0;
-            public int sharpRight = 0;
         }
 
         // Adapted from NetSegment.CountLanes 
@@ -665,7 +665,7 @@ namespace ImprovedLaneConnections
             {
                 return laneDirs;
             }
-            NetManager instance = Singleton<NetManager>.instance;
+            NetManager netManager = Singleton<NetManager>.instance;
             for (int i = 0; i < 8; i++)
             {
                 ushort segment = node.GetSegment(i);
@@ -674,7 +674,7 @@ namespace ImprovedLaneConnections
                     continue;
                 }
                 NetInfo.Direction actualDirection = direction;
-                if (instance.m_segments.m_buffer[segment].m_endNode == nodeID)
+                if (netManager.m_segments.m_buffer[segment].m_endNode == nodeID)
                 {
                     switch (actualDirection)
                     {
@@ -686,7 +686,7 @@ namespace ImprovedLaneConnections
                             break;
                     }
                 }
-                CountSegmentLanes(instance.m_segments.m_buffer[segment], actualDirection, laneTypes, vehicleTypes, directionVector, ref laneDirs);
+                CountSegmentLanes(netManager.m_segments.m_buffer[segment], actualDirection, laneTypes, vehicleTypes, directionVector, ref laneDirs);
             }
 
             return laneDirs;
