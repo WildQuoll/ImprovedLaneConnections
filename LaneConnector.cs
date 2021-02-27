@@ -9,7 +9,7 @@ namespace ImprovedLaneConnections
 {
     static class LaneConnector
     {
-        public static void AssignLanes(List<uint> laneIds, Vector3 outVector, NetSegment data, ushort segmentID, ushort nodeID, NetNode junctionNode)
+        public static void AssignLanes(List<uint> laneIds, Vector3 outVector, ushort segmentID, ushort nodeID, NetNode junctionNode, bool lht)
         {
             var outLaneDirs = CountNodeLanes(junctionNode,
                                              nodeID,
@@ -46,9 +46,19 @@ namespace ImprovedLaneConnections
                 connectableLaneCount += 1;
             }
 
+            if (lht)
+            {
+                LHTHandler.Mirror(ref outLaneDirs);
+            }
+
             List<LaneConnectionInfo> lanesInfo = AssignLanes(laneIds.Count, outLaneDirs.left, outLaneDirs.forward, outLaneDirs.right);
 
             AccountForSharpTurnLanes(ref lanesInfo, (byte)outLaneDirs.sharpLeft, (byte)outLaneDirs.sharpRight);
+
+            if (lht)
+            {
+                LHTHandler.Mirror(ref lanesInfo);
+            }
 
             for (int i = 0; i < laneIds.Count; ++i)
             {
@@ -109,16 +119,9 @@ namespace ImprovedLaneConnections
                 inLanesPerOutLane[i] = minInLanesPerOutLane;
             }
 
-            // If the number of extra lanes is odd, assign the extra lane to the innermost lane (left in RHT, right in LHT).
+            // If the number of extra lanes is odd, assign the extra lane to the innermost lane (left in RHT).
             int extraInLanesFromRight = extraInLanes / 2;
             int extraInLanesFromLeft = extraInLanes - extraInLanesFromRight;
-
-            bool lht = Singleton<SimulationManager>.instance.m_metaData.m_invertTraffic == SimulationMetaData.MetaBool.True;
-            if (lht && extraInLanes % 2 == 1)
-            {
-                extraInLanesFromRight += 1;
-                extraInLanesFromLeft -= 1;
-            }
 
             for (int i = 0; i < extraInLanesFromLeft; ++i)
             {
@@ -151,21 +154,19 @@ namespace ImprovedLaneConnections
 
             List<List<int>> possibleLaneArrangements = GetAllPossibleLaneConfigurations(inLanes, outLanes.Count);
 
-            bool lht = Singleton<SimulationManager>.instance.m_metaData.m_invertTraffic == SimulationMetaData.MetaBool.True;
-
             List<LaneConnectionInfo> bestLanesInfo = GetLaneSetup(outLanes, possibleLaneArrangements[0]);
-            LaneSetupFeatures bestFeatures = EvaluateLaneSetup(bestLanesInfo, outLanes, lht);
+            LaneSetupFeatures bestFeatures = EvaluateLaneSetup(bestLanesInfo, outLanes);
 
             // Mod.LogMessage("Initial setup:\n" + ToString(bestLanesInfo) + "\nevaluated as:\n" + bestFeatures.ToString());
 
             for (int i = 1; i < possibleLaneArrangements.Count; ++i)
             {
                 var lanesInfo = GetLaneSetup(outLanes, possibleLaneArrangements[i]);
-                var features = EvaluateLaneSetup(lanesInfo, outLanes, lht);
+                var features = EvaluateLaneSetup(lanesInfo, outLanes);
 
                 // Mod.LogMessage(ToString(lanesInfo) + "\nevaluated as:\n" + features.ToString());
 
-                if (features.IsBetterThan(bestFeatures, lht))
+                if (features.IsBetterThan(bestFeatures))
                 {
                     // Mod.LogMessage("This is better than previous best");
                     bestFeatures = features;
@@ -335,37 +336,20 @@ namespace ImprovedLaneConnections
             return lanesInfo;
         }
 
-        // Identifies all features of a lane setup, which may be needed to determine which setup is best.
-        private static LaneSetupFeatures EvaluateLaneSetup(List<LaneConnectionInfo> lanesInfo, List<NetLane.Flags> outLanes, bool lht)
+        // Identifies all features of a lane setup, which may be needed to determine which setup is best. Assumes RHT
+        private static LaneSetupFeatures EvaluateLaneSetup(List<LaneConnectionInfo> lanesInfo, List<NetLane.Flags> outLanes)
         {
             var features = new LaneSetupFeatures();
             // If two in lanes with the same direction (e.g. two forward-only lanes) connect to a different
-            // number of out lanes, the lane with more connections MUST be to the left (LHT: right) of the other lane.
-            if (lht)
+            // number of out lanes, the lane with more connections MUST be to the left (in RHT) of the other lane.
+            for (int i = 1; i < lanesInfo.Count; ++i)
             {
-                for (int i = lanesInfo.Count - 1; i > 0; --i)
+                if (lanesInfo[i - 1].direction == lanesInfo[i].direction)
                 {
-                    if (lanesInfo[i - 1].direction == lanesInfo[i].direction)
+                    if (lanesInfo[i - 1].GetLaneCount() < lanesInfo[i].GetLaneCount())
                     {
-                        if (lanesInfo[i - 1].GetLaneCount() > lanesInfo[i].GetLaneCount())
-                        {
-                            features.valid = false;
-                            return features;
-                        }
-                    }
-                }
-            }
-            else
-            {
-                for (int i = 1; i < lanesInfo.Count; ++i)
-                {
-                    if (lanesInfo[i - 1].direction == lanesInfo[i].direction)
-                    {
-                        if (lanesInfo[i - 1].GetLaneCount() < lanesInfo[i].GetLaneCount())
-                        {
-                            features.valid = false;
-                            return features;
-                        }
+                        features.valid = false;
+                        return features;
                     }
                 }
             }
