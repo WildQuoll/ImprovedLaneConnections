@@ -17,9 +17,9 @@ namespace ImprovedLaneConnections
         public int sharpRight = 0;
     }
 
-    class LaneInfo
+    class LaneConnectionInfo
     {
-        public LaneInfo(NetLane.Flags direction, byte firstTarget, byte lastTarget)
+        public LaneConnectionInfo(NetLane.Flags direction, byte firstTarget, byte lastTarget)
         {
             this.direction = direction;
             this.firstTarget = firstTarget;
@@ -280,9 +280,9 @@ namespace ImprovedLaneConnections
         // <returns>
         // A list of all incoming lanes with information about them (direction, indices of connected outgoing lanes).
         // </returns>
-        private static List< LaneInfo > GetLaneSetup(List<NetLane.Flags> outLanes, List<int> laneCorrespondence)
+        private static List< LaneConnectionInfo > GetLaneSetup(List<NetLane.Flags> outLanes, List<int> laneCorrespondence)
         {
-            var lanesInfo = new List<LaneInfo>();
+            var lanesInfo = new List<LaneConnectionInfo>();
 
             int currentInLaneIndex = 0;
 
@@ -295,7 +295,7 @@ namespace ImprovedLaneConnections
                     currentInLaneIndex += 1;
 
                     int lastLaneIndex = i - 1;
-                    lanesInfo.Add(new LaneInfo(directions, (byte)firstLaneIndex, (byte)lastLaneIndex));
+                    lanesInfo.Add(new LaneConnectionInfo(directions, (byte)firstLaneIndex, (byte)lastLaneIndex));
                     firstLaneIndex = i;
                     directions = NetLane.Flags.None;
                 }
@@ -303,12 +303,12 @@ namespace ImprovedLaneConnections
                 directions |= outLanes[i];
             }
 
-            lanesInfo.Add(new LaneInfo(directions, (byte)firstLaneIndex, (byte)(outLanes.Count - 1)));
+            lanesInfo.Add(new LaneConnectionInfo(directions, (byte)firstLaneIndex, (byte)(outLanes.Count - 1)));
 
             return lanesInfo;
         }
 
-        private static string ToString(List< LaneInfo > lanesInfo)
+        private static string ToString(List< LaneConnectionInfo > lanesInfo)
         {
             string s = "";
             foreach(var laneInfo in lanesInfo)
@@ -319,7 +319,7 @@ namespace ImprovedLaneConnections
         }
 
         // Identifies all features of a lane setup, which may be needed to determine which setup is best.
-        private static LaneSetupFeatures EvaluateLaneSetup(List<LaneInfo> lanesInfo, List<NetLane.Flags> outLanes, bool lht)
+        private static LaneSetupFeatures EvaluateLaneSetup(List<LaneConnectionInfo> lanesInfo, List<NetLane.Flags> outLanes, bool lht)
         {
             var features = new LaneSetupFeatures();
             // If two in lanes with the same direction (e.g. two forward-only lanes) connect to a different
@@ -448,26 +448,26 @@ namespace ImprovedLaneConnections
         }
 
         // For junctions with an equal number of incoming (in) lanes and outgoing (out) lanes.
-        private static List<LaneInfo> AssignLanesOneToOne(int numLanes, int leftOut, int forwardOut, int rightOut)
+        private static List<LaneConnectionInfo> AssignLanesOneToOne(int numLanes, int leftOut, int forwardOut, int rightOut)
         {
-            var lanesInfo = new List< LaneInfo >(numLanes);
+            var lanesInfo = new List< LaneConnectionInfo >(numLanes);
 
             byte laneIndex = 0;
             for (int i = 0; i < leftOut; ++i)
             {
-                lanesInfo.Add(new LaneInfo(NetLane.Flags.Left, laneIndex, laneIndex));
+                lanesInfo.Add(new LaneConnectionInfo(NetLane.Flags.Left, laneIndex, laneIndex));
                 laneIndex += 1;
             }
 
             for (int i = 0; i < forwardOut; ++i)
             {
-                lanesInfo.Add(new LaneInfo(NetLane.Flags.Forward, laneIndex, laneIndex));
+                lanesInfo.Add(new LaneConnectionInfo(NetLane.Flags.Forward, laneIndex, laneIndex));
                 laneIndex += 1;
             }
 
             for (int i = 0; i < rightOut; ++i)
             {
-                lanesInfo.Add(new LaneInfo(NetLane.Flags.Right, laneIndex, laneIndex));
+                lanesInfo.Add(new LaneConnectionInfo(NetLane.Flags.Right, laneIndex, laneIndex));
                 laneIndex += 1;
             }
 
@@ -475,7 +475,7 @@ namespace ImprovedLaneConnections
         }
 
         // For junctions with more incoming (in) lanes than outgoing (out) lanes.
-        private static List<LaneInfo> AssignLanesMoreInThanOut(int numLanes, int leftOut, int forwardOut, int rightOut)
+        private static List<LaneConnectionInfo> AssignLanesMoreInThanOut(int numLanes, int leftOut, int forwardOut, int rightOut)
         {
             var outLanes = CreateLaneList(leftOut, forwardOut, rightOut);
 
@@ -509,14 +509,14 @@ namespace ImprovedLaneConnections
                 inLanesPerOutLane[outLanes.Count - i - 1] += 1;
             }
 
-            var lanesInfo = new List<LaneInfo>(numLanes);
+            var lanesInfo = new List<LaneConnectionInfo>(numLanes);
             for (byte outIndex = 0; outIndex < outLanes.Count; ++outIndex)
             {
                 var connectedInLanes = inLanesPerOutLane[outIndex];
 
                 for (int i = 0; i < connectedInLanes; ++i)
                 {
-                    lanesInfo.Add(new LaneInfo(outLanes[outIndex], outIndex, outIndex));
+                    lanesInfo.Add(new LaneConnectionInfo(outLanes[outIndex], outIndex, outIndex));
                 }
             }
 
@@ -524,7 +524,7 @@ namespace ImprovedLaneConnections
         }
 
         // For junctions with more outgoing (out) lanes than incoming (in) lanes.
-        private static List<LaneInfo> AssignLanesMoreOutThanIn(int inLanes, int leftOut, int forwardOut, int rightOut)
+        private static List<LaneConnectionInfo> AssignLanesMoreOutThanIn(int inLanes, int leftOut, int forwardOut, int rightOut)
         {
             List< NetLane.Flags > outLanes = CreateLaneList(leftOut, forwardOut, rightOut);
 
@@ -532,7 +532,7 @@ namespace ImprovedLaneConnections
 
             bool lht = Singleton<SimulationManager>.instance.m_metaData.m_invertTraffic == SimulationMetaData.MetaBool.True;
 
-            List<LaneInfo> bestLanesInfo = GetLaneSetup(outLanes, possibleLaneArrangements[0]);
+            List<LaneConnectionInfo> bestLanesInfo = GetLaneSetup(outLanes, possibleLaneArrangements[0]);
             LaneSetupFeatures bestFeatures = EvaluateLaneSetup(bestLanesInfo, outLanes, lht);
 
             // Mod.LogMessage("Initial setup:\n" + ToString(bestLanesInfo) + "\nevaluated as:\n" + bestFeatures.ToString());
@@ -564,7 +564,7 @@ namespace ImprovedLaneConnections
             return bestLanesInfo;
         }
 
-        private static List< LaneInfo > AssignLanes(int inLanes, int leftOut, int forwardOut, int rightOut)
+        private static List< LaneConnectionInfo > AssignLanes(int inLanes, int leftOut, int forwardOut, int rightOut)
         {
             int totalLanesOut = leftOut + forwardOut + rightOut;
 
@@ -692,7 +692,7 @@ namespace ImprovedLaneConnections
             return laneDirs;
         }
 
-        private static void AccountForSharpTurnLanes(ref List<LaneInfo> lanesInfo, byte sharpLeftLanes, byte sharpRightLanes)
+        private static void AccountForSharpTurnLanes(ref List<LaneConnectionInfo> lanesInfo, byte sharpLeftLanes, byte sharpRightLanes)
         {
             if (sharpLeftLanes > 0)
             {
@@ -750,7 +750,7 @@ namespace ImprovedLaneConnections
                 connectableLaneCount += 1;
             }
 
-            List<LaneInfo> lanesInfo = AssignLanes(laneIds.Count, outLaneDirs.left, outLaneDirs.forward, outLaneDirs.right);
+            List<LaneConnectionInfo> lanesInfo = AssignLanes(laneIds.Count, outLaneDirs.left, outLaneDirs.forward, outLaneDirs.right);
 
             AccountForSharpTurnLanes(ref lanesInfo, (byte)outLaneDirs.sharpLeft, (byte)outLaneDirs.sharpRight);
             
