@@ -772,16 +772,6 @@ namespace ImprovedLaneConnections
             }
         }
 
-        private static List< uint > ToList(SortedDictionary< float, uint> dict)
-        {
-            var list = new List<uint>(dict.Count);
-            foreach(var e in dict)
-            {
-                list.Add(e.Value);
-            }
-            return list;
-        }
-
         private static bool IsJunctionNode(NetNode node)
         {
             return (node.m_flags & NetNode.Flags.Junction) != 0;
@@ -797,49 +787,7 @@ namespace ImprovedLaneConnections
 
             NetManager netManager = Singleton<NetManager>.instance;
 
-            // Position -> lane ID, sorted by postion (unlike ___m_info.m_lanes which may not be)
-            var forwardVehicleLanes = new SortedDictionary<float, uint>();
-            var backwardVehicleLanes = new SortedDictionary<float, uint>();
-
-            uint laneId = data.m_lanes;
-            foreach (var lane in ___m_info.m_lanes)
-            {
-                bool isVehicleLane = (lane.m_laneType & vehicleLaneTypes) != 0;
-                bool isCarLane = (lane.m_vehicleType & VehicleInfo.VehicleType.Car) != 0;
-                if (!isVehicleLane || !isCarLane)
-                {
-                    // Pedestrian lanes, parking lanes, bicycle lanes etc. - ignore
-                    laneId = netManager.m_lanes.m_buffer[laneId].m_nextLane;
-                    continue;
-                }
-
-                bool isForwardDirection = (lane.m_finalDirection & NetInfo.Direction.Forward) != 0;
-
-                if (isForwardDirection)
-                {
-                    if (forwardVehicleLanes.ContainsKey(lane.m_position))
-                    {
-                        Mod.LogMessage("Segment " + segmentID + " lane " + laneId + " has the same position as another lane and will be skipped");
-                    }
-                    else
-                    {
-                        forwardVehicleLanes.Add(lane.m_position, laneId);
-                    }
-                }
-                else
-                {
-                    if (backwardVehicleLanes.ContainsKey(-lane.m_position))
-                    {
-                        Mod.LogMessage("Segment " + segmentID + " lane " + laneId + " has the same position as another lane and will be skipped");
-                    }
-                    else
-                    {
-                        backwardVehicleLanes.Add(-lane.m_position, laneId);
-                    }
-                }
-
-                laneId = netManager.m_lanes.m_buffer[laneId].m_nextLane;
-            }
+            SegmentLanes lanes = SegmentAnalyser.IdentifyLanes(netManager, ___m_info, segmentID, data.m_lanes);
 
             // Every other segment is "inverted"
             bool invertedSegment = (netManager.m_segments.m_buffer[segmentID].m_flags & NetSegment.Flags.Invert) != 0;
@@ -847,7 +795,7 @@ namespace ImprovedLaneConnections
             NetNode startNode = netManager.m_nodes.m_buffer[data.m_startNode];
             NetNode endNode = netManager.m_nodes.m_buffer[data.m_endNode];
 
-            if (forwardVehicleLanes.Count > 0)
+            if (lanes.forward.Count > 0)
             {
                 var actualEndNode = invertedSegment ? startNode : endNode;
 
@@ -855,13 +803,13 @@ namespace ImprovedLaneConnections
                 {
                     var nodeID = invertedSegment ? data.m_startNode : data.m_endNode;
                     var outVector = invertedSegment ? -data.m_startDirection : -data.m_endDirection;
-                    var sortedLaneIds = ToList(forwardVehicleLanes);
+                    var sortedLaneIds = ToList(lanes.forward);
 
                     AssignLanes(sortedLaneIds,outVector, data, segmentID, nodeID, actualEndNode);
                 }
             }
 
-            if (backwardVehicleLanes.Count > 0)
+            if (lanes.backward.Count > 0)
             {
                 var actualEndNode = invertedSegment ? endNode : startNode; // other way around than for forward lanes
 
@@ -869,7 +817,7 @@ namespace ImprovedLaneConnections
                 {
                     var nodeID = invertedSegment ? data.m_endNode : data.m_startNode;
                     var outVector = invertedSegment ? -data.m_endDirection : -data.m_startDirection;
-                    var sortedLaneIds = ToList(backwardVehicleLanes);
+                    var sortedLaneIds = ToList(lanes.backward);
                     AssignLanes(sortedLaneIds, outVector, data, segmentID, nodeID, actualEndNode);
                 }
             }
