@@ -7,10 +7,10 @@ namespace ImprovedLaneConnections
 {
     static class LHTHandler
     {
-        public static void Mirror(ref LaneDirections laneDirs)
+        public static void Mirror(ref JunctionInfo nodeInfo)
         {
-            Swap(ref laneDirs.left, ref laneDirs.right);
-            Swap(ref laneDirs.sharpLeft, ref laneDirs.sharpRight);
+            Swap(ref nodeInfo.laneCounts.left, ref nodeInfo.laneCounts.right);
+            Swap(ref nodeInfo.laneCounts.sharpLeft, ref nodeInfo.laneCounts.sharpRight);
         }
 
         public static void Mirror(ref List<LaneConnectionInfo> info)

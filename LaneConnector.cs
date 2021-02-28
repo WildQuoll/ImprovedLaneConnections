@@ -7,15 +7,6 @@ using UnityEngine;
 
 namespace ImprovedLaneConnections
 {
-    class LaneDirections
-    {
-        public int sharpLeft = 0;
-        public int left = 0;
-        public int forward = 0;
-        public int right = 0;
-        public int sharpRight = 0;
-    }
-
     class LaneConnectionInfo
     {
         public LaneConnectionInfo(NetLane.Flags direction, byte firstTarget, byte lastTarget)
@@ -152,15 +143,15 @@ namespace ImprovedLaneConnections
     {
         public static void AssignLanes(List<uint> laneIds, Vector3 outVector, ushort segmentID, ushort nodeID, NetNode junctionNode, bool lht)
         {
-            var outLaneDirs = CountNodeLanes(junctionNode,
-                                             nodeID,
-                                             segmentID,
-                                             vehicleLaneTypes,
-                                             VehicleInfo.VehicleType.Car,
-                                             outVector);
+            var nodeInfo = AnalyseNode(junctionNode,
+                                       nodeID,
+                                       segmentID,
+                                       vehicleLaneTypes,
+                                       VehicleInfo.VehicleType.Car,
+                                       outVector);
 
-            int connectableLaneCount = outLaneDirs.left + outLaneDirs.forward + outLaneDirs.right;
-            int totalLaneCount = connectableLaneCount + outLaneDirs.sharpLeft + outLaneDirs.sharpRight;
+            int connectableLaneCount = nodeInfo.laneCounts.left + nodeInfo.laneCounts.forward + nodeInfo.laneCounts.right;
+            int totalLaneCount = connectableLaneCount + nodeInfo.laneCounts.sharpLeft + nodeInfo.laneCounts.sharpRight;
             if (totalLaneCount == 0)
             {
                 // This can happen if multiple one-way roads meet creating a dead end.
@@ -172,15 +163,15 @@ namespace ImprovedLaneConnections
             // If the number of connectable lanes is lower than the number of incoming lanes, sharp left/right lanes re-assign some or all of them into "normal" left/right.
             while (laneIds.Count > connectableLaneCount && connectableLaneCount != totalLaneCount)
             {
-                if (outLaneDirs.sharpLeft >= outLaneDirs.sharpRight)
+                if (nodeInfo.laneCounts.sharpLeft >= nodeInfo.laneCounts.sharpRight)
                 {
-                    outLaneDirs.sharpLeft -= 1;
-                    outLaneDirs.left += 1;
+                    nodeInfo.laneCounts.sharpLeft -= 1;
+                    nodeInfo.laneCounts.left += 1;
                 }
                 else
                 {
-                    outLaneDirs.sharpRight -= 1;
-                    outLaneDirs.right += 1;
+                    nodeInfo.laneCounts.sharpRight -= 1;
+                    nodeInfo.laneCounts.right += 1;
                 }
 
                 connectableLaneCount += 1;
@@ -188,12 +179,12 @@ namespace ImprovedLaneConnections
 
             if (lht)
             {
-                LHTHandler.Mirror(ref outLaneDirs);
+                LHTHandler.Mirror(ref nodeInfo);
             }
 
-            List<LaneConnectionInfo> lanesInfo = AssignLanes(laneIds.Count, outLaneDirs.left, outLaneDirs.forward, outLaneDirs.right);
+            List<LaneConnectionInfo> lanesInfo = AssignLanes(laneIds.Count, nodeInfo.laneCounts.left, nodeInfo.laneCounts.forward, nodeInfo.laneCounts.right);
 
-            AccountForSharpTurnLanes(ref lanesInfo, (byte)outLaneDirs.sharpLeft, (byte)outLaneDirs.sharpRight);
+            AccountForSharpTurnLanes(ref lanesInfo, (byte)nodeInfo.laneCounts.sharpLeft, (byte)nodeInfo.laneCounts.sharpRight);
 
             if (lht)
             {
@@ -623,18 +614,18 @@ namespace ImprovedLaneConnections
         }
 
         // Adapted from NetNode.CountLanes
-        private static LaneDirections CountNodeLanes(NetNode node,
-                                                     ushort nodeID,
-                                                     ushort ignoreSegmentID,
-                                                     NetInfo.LaneType laneTypes,
-                                                     VehicleInfo.VehicleType vehicleTypes,
-                                                     Vector3 directionVector)
+        private static JunctionInfo AnalyseNode(NetNode node,
+                                                ushort nodeID,
+                                                ushort ignoreSegmentID,
+                                                NetInfo.LaneType laneTypes,
+                                                VehicleInfo.VehicleType vehicleTypes,
+                                                Vector3 directionVector)
         {
-            var laneDirs = new LaneDirections();
+            var nodeInfo = new JunctionInfo();
 
             if (node.m_flags == NetNode.Flags.None)
             {
-                return laneDirs;
+                return nodeInfo;
             }
 
             const float sharpAngleThresholdDeg = 50.1f;
@@ -666,27 +657,27 @@ namespace ImprovedLaneConnections
 
                 if (angleDeg < sharpLeftThresholdDeg)
                 {
-                    laneDirs.sharpLeft += count;
+                    nodeInfo.laneCounts.sharpLeft += count;
                 }
                 else if (angleDeg <= leftThresholdDeg)
                 {
-                    laneDirs.left += count;
+                    nodeInfo.laneCounts.left += count;
                 }
                 else if (angleDeg > sharpRightThresholdDeg)
                 {
-                    laneDirs.sharpRight += count;
+                    nodeInfo.laneCounts.sharpRight += count;
                 }
                 else if (angleDeg >= rightThresholdDeg)
                 {
-                    laneDirs.right += count;
+                    nodeInfo.laneCounts.right += count;
                 }
                 else
                 {
-                    laneDirs.forward += count;
+                    nodeInfo.laneCounts.forward += count;
                 }
             }
 
-            return laneDirs;
+            return nodeInfo;
         }
 
         private const NetInfo.LaneType vehicleLaneTypes = NetInfo.LaneType.Vehicle | NetInfo.LaneType.TransportVehicle;
