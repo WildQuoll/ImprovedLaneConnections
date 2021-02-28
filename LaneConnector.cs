@@ -141,7 +141,7 @@ namespace ImprovedLaneConnections
 
     static class LaneConnector
     {
-        public static void AssignLanes(List<uint> laneIds, Vector3 outVector, ushort segmentID, ushort nodeID, NetNode junctionNode, bool lht)
+        public static void AssignLanes(LaneInfo inLanes, Vector3 outVector, ushort segmentID, ushort nodeID, NetNode junctionNode, bool lht)
         {
             var nodeInfo = AnalyseNode(junctionNode,
                                        nodeID,
@@ -149,6 +149,9 @@ namespace ImprovedLaneConnections
                                        vehicleLaneTypes,
                                        VehicleInfo.VehicleType.Car,
                                        outVector);
+
+            var busLaneHandler = new BusLaneHandler();
+            busLaneHandler.PreProcess(ref inLanes, ref nodeInfo);
 
             int connectableLaneCount = nodeInfo.laneCounts.left + nodeInfo.laneCounts.forward + nodeInfo.laneCounts.right;
             int totalLaneCount = connectableLaneCount + nodeInfo.laneCounts.sharpLeft + nodeInfo.laneCounts.sharpRight;
@@ -158,10 +161,15 @@ namespace ImprovedLaneConnections
                 return;
             }
 
+            if (lht)
+            {
+                LHTHandler.Mirror(ref nodeInfo);
+            }
+
             NetManager netManager = Singleton<NetManager>.instance;
 
             // If the number of connectable lanes is lower than the number of incoming lanes, sharp left/right lanes re-assign some or all of them into "normal" left/right.
-            while (laneIds.Count > connectableLaneCount && connectableLaneCount != totalLaneCount)
+            while (inLanes.lanes.Count > connectableLaneCount && connectableLaneCount != totalLaneCount)
             {
                 if (nodeInfo.laneCounts.sharpLeft >= nodeInfo.laneCounts.sharpRight)
                 {
@@ -177,24 +185,22 @@ namespace ImprovedLaneConnections
                 connectableLaneCount += 1;
             }
 
-            if (lht)
-            {
-                LHTHandler.Mirror(ref nodeInfo);
-            }
-
-            List<LaneConnectionInfo> lanesInfo = AssignLanes(laneIds.Count, nodeInfo.laneCounts.left, nodeInfo.laneCounts.forward, nodeInfo.laneCounts.right);
+            List<LaneConnectionInfo> lanesInfo = AssignLanes(inLanes.lanes.Count, nodeInfo.laneCounts.left, nodeInfo.laneCounts.forward, nodeInfo.laneCounts.right);
 
             AccountForSharpTurnLanes(ref lanesInfo, (byte)nodeInfo.laneCounts.sharpLeft, (byte)nodeInfo.laneCounts.sharpRight);
+
+            busLaneHandler.PostProcess(ref inLanes, ref lanesInfo);
 
             if (lht)
             {
                 LHTHandler.Mirror(ref lanesInfo);
             }
 
-            for (int i = 0; i < laneIds.Count; ++i)
+            int i = 0;
+            foreach(var lane in inLanes.lanes)
             {
                 var laneInfo = lanesInfo[i];
-                var laneId = laneIds[i];
+                var laneId = lane.Value;
 
                 // Note: NetLane is a value type 
 
@@ -206,6 +212,8 @@ namespace ImprovedLaneConnections
                 flags |= laneInfo.direction;
 
                 netManager.m_lanes.m_buffer[laneId].m_flags = (ushort)flags;
+
+                i += 1;
             }
         }
 

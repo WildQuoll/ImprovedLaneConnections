@@ -2,31 +2,17 @@
 
 namespace ImprovedLaneConnections
 {
-    class SegmentLanes
+    class LaneInfo
     {
         // Position -> lane ID, sorted by postion (unlike ___m_info.m_lanes which may not be)
-        public SortedDictionary<float, uint> forward = new SortedDictionary<float, uint>();
-        public SortedDictionary<float, uint> backward = new SortedDictionary<float, uint>();
+        public SortedDictionary<float, uint> lanes = new SortedDictionary<float, uint>();
+        public List<uint> busLaneIds = new List<uint>();
+    }
 
-        public List<uint> GetForwardLaneIds()
-        {
-            return ToList(forward);
-        }
-
-        public List<uint> GetBackwardLaneIds()
-        {
-            return ToList(backward);
-        }
-
-        private static List<uint> ToList(SortedDictionary<float, uint> dict)
-        {
-            var list = new List<uint>(dict.Count);
-            foreach (var e in dict)
-            {
-                list.Add(e.Value);
-            }
-            return list;
-        }
+    class SegmentLanes
+    {
+        public LaneInfo forward = new LaneInfo();
+        public LaneInfo backward = new LaneInfo();
     }
 
     static class SegmentAnalyser
@@ -53,24 +39,34 @@ namespace ImprovedLaneConnections
 
                 if (isForwardDirection)
                 {
-                    if (lanes.forward.ContainsKey(lane.m_position))
+                    if (lanes.forward.lanes.ContainsKey(lane.m_position))
                     {
                         Mod.LogMessage("Segment " + segmentID + " lane " + laneId + " has the same position as another lane and will be skipped");
                     }
                     else
                     {
-                        lanes.forward.Add(lane.m_position, laneId);
+                        lanes.forward.lanes.Add(lane.m_position, laneId);
+
+                        if (IsBusLane(lane))
+                        {
+                            lanes.forward.busLaneIds.Add(laneId);
+                        }
                     }
                 }
                 else
                 {
-                    if (lanes.backward.ContainsKey(-lane.m_position))
+                    if (lanes.backward.lanes.ContainsKey(-lane.m_position))
                     {
                         Mod.LogMessage("Segment " + segmentID + " lane " + laneId + " has the same position as another lane and will be skipped");
                     }
                     else
                     {
-                        lanes.backward.Add(-lane.m_position, laneId);
+                        lanes.backward.lanes.Add(-lane.m_position, laneId);
+
+                        if (IsBusLane(lane))
+                        {
+                            lanes.backward.busLaneIds.Add(laneId);
+                        }
                     }
                 }
 
@@ -78,6 +74,11 @@ namespace ImprovedLaneConnections
             }
 
             return lanes;
+        }
+
+        private static bool IsBusLane(NetInfo.Lane lane)
+        {
+            return lane.m_laneType == NetInfo.LaneType.TransportVehicle;
         }
     }
 }

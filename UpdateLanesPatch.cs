@@ -34,7 +34,7 @@ namespace ImprovedLaneConnections
 
             bool lht = Singleton<SimulationManager>.instance.m_metaData.m_invertTraffic == SimulationMetaData.MetaBool.True;
 
-            if (lanes.forward.Count > 0)
+            if (lanes.forward.lanes.Count > 0)
             {
                 var actualEndNode = invertedSegment ? startNode : endNode;
 
@@ -42,13 +42,11 @@ namespace ImprovedLaneConnections
                 {
                     var nodeID = invertedSegment ? data.m_startNode : data.m_endNode;
                     var outVector = invertedSegment ? -data.m_startDirection : -data.m_endDirection;
-                    var sortedLaneIds = lanes.GetForwardLaneIds();
-
-                    LaneConnector.AssignLanes(sortedLaneIds,outVector, segmentID, nodeID, actualEndNode, lht);
+                    LaneConnector.AssignLanes(lanes.forward, outVector, segmentID, nodeID, actualEndNode, lht);
                 }
             }
 
-            if (lanes.backward.Count > 0)
+            if (lanes.backward.lanes.Count > 0)
             {
                 var actualEndNode = invertedSegment ? endNode : startNode; // other way around than for forward lanes
 
@@ -56,9 +54,8 @@ namespace ImprovedLaneConnections
                 {
                     var nodeID = invertedSegment ? data.m_endNode : data.m_startNode;
                     var outVector = invertedSegment ? -data.m_endDirection : -data.m_startDirection;
-                    var sortedLaneIds = lanes.GetBackwardLaneIds();
 
-                    LaneConnector.AssignLanes(sortedLaneIds, outVector, segmentID, nodeID, actualEndNode, lht);
+                    LaneConnector.AssignLanes(lanes.backward, outVector, segmentID, nodeID, actualEndNode, lht);
                 }
             }
         }
