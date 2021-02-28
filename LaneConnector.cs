@@ -155,7 +155,6 @@ namespace ImprovedLaneConnections
             var outLaneDirs = CountNodeLanes(junctionNode,
                                              nodeID,
                                              segmentID,
-                                             NetInfo.Direction.Forward,
                                              vehicleLaneTypes,
                                              VehicleInfo.VehicleType.Car,
                                              outVector);
@@ -590,34 +589,17 @@ namespace ImprovedLaneConnections
         }
 
         // Adapted from NetSegment.CountLanes 
-        private static void CountSegmentLanes(NetSegment segment,
-                                              NetInfo.Direction direction,
-                                              NetInfo.LaneType laneTypes,
-                                              VehicleInfo.VehicleType vehicleTypes,
-                                              Vector3 directionVector,
-                                              ref LaneDirections laneDirs)
+        private static int CountSegmentLanes(NetSegment segment,
+                                             NetInfo.Direction direction,
+                                             NetInfo.LaneType laneTypes,
+                                             VehicleInfo.VehicleType vehicleTypes)
         {
-            if (segment.m_flags == NetSegment.Flags.None)
+            if (segment.m_flags == NetSegment.Flags.None || segment.Info == null || segment.Info.m_lanes == null)
             {
-                return;
+                return 0;
             }
 
-            if (segment.Info == null || segment.Info.m_lanes == null)
-            {
-                return;
-            }
-
-            const float sharpAngleThresholdDeg = 50.1f;
-            const float sharpRightThresholdDeg = 180.0f - sharpAngleThresholdDeg;
-            const float sharpLeftThresholdDeg = -sharpRightThresholdDeg;
-            const float rightThresholdDeg = 30.1f; // The base game threshold is 30
-            const float leftThresholdDeg = -30.1f;
-
-            Vector3 vector = (direction == NetInfo.Direction.Forward) ? segment.m_startDirection : segment.m_endDirection;
-
-            float dot = vector.x * directionVector.x + vector.z * directionVector.z;
-            float det = vector.x * directionVector.z - vector.z * directionVector.x;
-            float angleDeg = Mathf.Atan2(det, dot) * 180.0f / Mathf.PI;
+            int count = 0;
 
             foreach (NetInfo.Lane lane in segment.Info.m_lanes)
             {
@@ -633,35 +615,17 @@ namespace ImprovedLaneConnections
 
                 if ((laneDirection & direction) != 0)
                 {
-                    if (angleDeg < sharpLeftThresholdDeg)
-                    {
-                        laneDirs.sharpLeft++;
-                    }
-                    else if (angleDeg <= leftThresholdDeg)
-                    {
-                        laneDirs.left++;
-                    }
-                    else if (angleDeg > sharpRightThresholdDeg)
-                    {
-                        laneDirs.sharpRight++;
-                    }
-                    else if (angleDeg >= rightThresholdDeg)
-                    {
-                        laneDirs.right++;
-                    }
-                    else
-                    {
-                        laneDirs.forward++;
-                    }
+                    count += 1;
                 }
             }
+
+            return count;
         }
 
         // Adapted from NetNode.CountLanes
         private static LaneDirections CountNodeLanes(NetNode node,
                                                      ushort nodeID,
-                                                     ushort ignoreSegment,
-                                                     NetInfo.Direction direction,
+                                                     ushort ignoreSegmentID,
                                                      NetInfo.LaneType laneTypes,
                                                      VehicleInfo.VehicleType vehicleTypes,
                                                      Vector3 directionVector)
@@ -672,28 +636,54 @@ namespace ImprovedLaneConnections
             {
                 return laneDirs;
             }
+
+            const float sharpAngleThresholdDeg = 50.1f;
+            const float sharpRightThresholdDeg = 180.0f - sharpAngleThresholdDeg;
+            const float sharpLeftThresholdDeg = -sharpRightThresholdDeg;
+            const float rightThresholdDeg = 30.1f; // The base game threshold is 30
+            const float leftThresholdDeg = -30.1f;
+
             NetManager netManager = Singleton<NetManager>.instance;
             for (int i = 0; i < 8; i++)
             {
-                ushort segment = node.GetSegment(i);
-                if (segment == 0 || segment == ignoreSegment)
+                ushort segmentID = node.GetSegment(i);
+                if (segmentID == 0 || segmentID == ignoreSegmentID)
                 {
                     continue;
                 }
-                NetInfo.Direction actualDirection = direction;
-                if (netManager.m_segments.m_buffer[segment].m_endNode == nodeID)
+
+                var segment = netManager.m_segments.m_buffer[segmentID];
+
+                NetInfo.Direction direction = segment.m_endNode == nodeID ? NetInfo.Direction.Backward : NetInfo.Direction.Forward;
+
+                int count = CountSegmentLanes(segment, direction, laneTypes, vehicleTypes);
+
+                Vector3 vector = (direction == NetInfo.Direction.Forward) ? segment.m_startDirection : segment.m_endDirection;
+
+                float dot = vector.x * directionVector.x + vector.z * directionVector.z;
+                float det = vector.x * directionVector.z - vector.z * directionVector.x;
+                float angleDeg = Mathf.Atan2(det, dot) * 180.0f / Mathf.PI;
+
+                if (angleDeg < sharpLeftThresholdDeg)
                 {
-                    switch (actualDirection)
-                    {
-                        case NetInfo.Direction.Forward:
-                            actualDirection = NetInfo.Direction.Backward;
-                            break;
-                        case NetInfo.Direction.Backward:
-                            actualDirection = NetInfo.Direction.Forward;
-                            break;
-                    }
+                    laneDirs.sharpLeft += count;
                 }
-                CountSegmentLanes(netManager.m_segments.m_buffer[segment], actualDirection, laneTypes, vehicleTypes, directionVector, ref laneDirs);
+                else if (angleDeg <= leftThresholdDeg)
+                {
+                    laneDirs.left += count;
+                }
+                else if (angleDeg > sharpRightThresholdDeg)
+                {
+                    laneDirs.sharpRight += count;
+                }
+                else if (angleDeg >= rightThresholdDeg)
+                {
+                    laneDirs.right += count;
+                }
+                else
+                {
+                    laneDirs.forward += count;
+                }
             }
 
             return laneDirs;
