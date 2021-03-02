@@ -38,6 +38,17 @@ namespace ImprovedLaneConnections
 
             return indices;
         }
+
+        public void Mirror()
+        {
+            var mirroredLanes = new SortedDictionary<float, uint>();
+            foreach(var lane in lanes)
+            {
+                mirroredLanes.Add(-lane.Key, lane.Value);
+            }
+
+            lanes = mirroredLanes;
+        }
     }
 
     class SegmentLanes

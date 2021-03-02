@@ -156,5 +156,26 @@ namespace ImprovedLaneConnections
 
             return removedDirections;
         }
+        private static void SwapValues<T, U>(ref Dictionary<T, U> source, T index1, T index2)
+        {
+            U temp = source[index1];
+            source[index1] = source[index2];
+            source[index2] = temp;
+        }
+
+        public void Mirror()
+        {
+            SwapValues(ref laneCounts, Direction.Left, Direction.Right);
+            SwapValues(ref laneCounts, Direction.SharpLeft, Direction.SharpRight);
+
+            var mirroredRoads = new SortedDictionary<float, LaneInfo>();
+            foreach(var road in roads)
+            {
+                mirroredRoads.Add(-road.Key, road.Value);
+                road.Value.Mirror();
+            }
+
+            roads = mirroredRoads;
+        }
     }
 }

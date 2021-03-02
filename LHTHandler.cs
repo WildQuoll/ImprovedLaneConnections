@@ -7,12 +7,6 @@ namespace ImprovedLaneConnections
 {
     static class LHTHandler
     {
-        public static void Mirror(ref JunctionInfo nodeInfo)
-        {
-            SwapValues(ref nodeInfo.laneCounts, Direction.Left, Direction.Right);
-            SwapValues(ref nodeInfo.laneCounts, Direction.SharpLeft, Direction.SharpRight);
-        }
-
         public static void Mirror(ref List<LaneConnectionInfo> info)
         {
             info.Reverse();
@@ -30,13 +24,6 @@ namespace ImprovedLaneConnections
 
                 firstTarget = (byte)(lastTarget + 1);
             }
-        }
-
-        private static void SwapValues<T, U>(ref Dictionary< T, U > source, T index1, T index2)
-        {
-            U temp = source[index1];
-            source[index1] = source[index2];
-            source[index2] = temp;
         }
 
         private static void Mirror(ref NetLane.Flags direction)

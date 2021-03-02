@@ -150,18 +150,7 @@ namespace ImprovedLaneConnections
                                        VehicleInfo.VehicleType.Car,
                                        outVector);
 
-            var busLaneHandler = new BusLaneHandler();
-            busLaneHandler.PreProcess(ref inLanes, ref nodeInfo);
-
-            int connectableLaneCount = nodeInfo.laneCounts[Direction.Left] + 
-                                       nodeInfo.laneCounts[Direction.Forward] +
-                                       nodeInfo.laneCounts[Direction.Right];
-
-            int totalLaneCount = connectableLaneCount +
-                                 nodeInfo.laneCounts[Direction.SharpLeft] + 
-                                 nodeInfo.laneCounts[Direction.SharpRight];
-
-            if (totalLaneCount == 0)
+            if (nodeInfo.GetLaneCount() == 0)
             {
                 // This can happen if multiple one-way roads meet creating a dead end.
                 return;
@@ -169,27 +158,14 @@ namespace ImprovedLaneConnections
 
             if (lht)
             {
-                LHTHandler.Mirror(ref nodeInfo);
+                inLanes.Mirror();
+                nodeInfo.Mirror();
             }
 
-            NetManager netManager = Singleton<NetManager>.instance;
+            var busLaneHandler = new BusLaneHandler();
+            busLaneHandler.PreProcess(ref inLanes, ref nodeInfo);
 
-            // If the number of connectable lanes is lower than the number of incoming lanes, sharp left/right lanes re-assign some or all of them into "normal" left/right.
-            while (inLanes.lanes.Count > connectableLaneCount && connectableLaneCount != totalLaneCount)
-            {
-                if (nodeInfo.laneCounts[Direction.SharpLeft] >= nodeInfo.laneCounts[Direction.SharpRight])
-                {
-                    nodeInfo.laneCounts[Direction.SharpLeft] -= 1;
-                    nodeInfo.laneCounts[Direction.Left] += 1;
-                }
-                else
-                {
-                    nodeInfo.laneCounts[Direction.SharpRight] -= 1;
-                    nodeInfo.laneCounts[Direction.Right] += 1;
-                }
-
-                connectableLaneCount += 1;
-            }
+            AdjustSharpTurns(inLanes.GetLaneCount(), ref nodeInfo);
 
             List<LaneConnectionInfo> lanesInfo = AssignLanes(inLanes.lanes.Count, nodeInfo.laneCounts[Direction.Left], nodeInfo.laneCounts[Direction.Forward], nodeInfo.laneCounts[Direction.Right]);
 
@@ -199,11 +175,14 @@ namespace ImprovedLaneConnections
 
             if (lht)
             {
+                inLanes.Mirror();
                 LHTHandler.Mirror(ref lanesInfo);
             }
 
             int i = 0;
-            foreach(var lane in inLanes.lanes)
+            NetManager netManager = Singleton<NetManager>.instance;
+
+            foreach (var lane in inLanes.lanes)
             {
                 var laneInfo = lanesInfo[i];
                 var laneId = lane.Value;
@@ -220,6 +199,34 @@ namespace ImprovedLaneConnections
                 netManager.m_lanes.m_buffer[laneId].m_flags = (ushort)flags;
 
                 i += 1;
+            }
+        }
+
+        private static void AdjustSharpTurns(int inLaneCount, ref JunctionInfo nodeInfo)
+        {
+            int connectableLaneCount = nodeInfo.laneCounts[Direction.Left] +
+                                       nodeInfo.laneCounts[Direction.Forward] +
+                                       nodeInfo.laneCounts[Direction.Right];
+
+            int totalLaneCount = connectableLaneCount +
+                                 nodeInfo.laneCounts[Direction.SharpLeft] +
+                                 nodeInfo.laneCounts[Direction.SharpRight];
+
+            // If the number of connectable lanes is lower than the number of incoming lanes, sharp left/right lanes re-assign some or all of them into "normal" left/right.
+            while (inLaneCount > connectableLaneCount && connectableLaneCount != totalLaneCount)
+            {
+                if (nodeInfo.laneCounts[Direction.SharpLeft] >= nodeInfo.laneCounts[Direction.SharpRight])
+                {
+                    nodeInfo.laneCounts[Direction.SharpLeft] -= 1;
+                    nodeInfo.laneCounts[Direction.Left] += 1;
+                }
+                else
+                {
+                    nodeInfo.laneCounts[Direction.SharpRight] -= 1;
+                    nodeInfo.laneCounts[Direction.Right] += 1;
+                }
+
+                connectableLaneCount += 1;
             }
         }
 
