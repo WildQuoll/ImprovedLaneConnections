@@ -153,8 +153,14 @@ namespace ImprovedLaneConnections
             var busLaneHandler = new BusLaneHandler();
             busLaneHandler.PreProcess(ref inLanes, ref nodeInfo);
 
-            int connectableLaneCount = nodeInfo.laneCounts.left + nodeInfo.laneCounts.forward + nodeInfo.laneCounts.right;
-            int totalLaneCount = connectableLaneCount + nodeInfo.laneCounts.sharpLeft + nodeInfo.laneCounts.sharpRight;
+            int connectableLaneCount = nodeInfo.laneCounts[Direction.Left] + 
+                                       nodeInfo.laneCounts[Direction.Forward] +
+                                       nodeInfo.laneCounts[Direction.Right];
+
+            int totalLaneCount = connectableLaneCount +
+                                 nodeInfo.laneCounts[Direction.SharpLeft] + 
+                                 nodeInfo.laneCounts[Direction.SharpRight];
+
             if (totalLaneCount == 0)
             {
                 // This can happen if multiple one-way roads meet creating a dead end.
@@ -171,23 +177,23 @@ namespace ImprovedLaneConnections
             // If the number of connectable lanes is lower than the number of incoming lanes, sharp left/right lanes re-assign some or all of them into "normal" left/right.
             while (inLanes.lanes.Count > connectableLaneCount && connectableLaneCount != totalLaneCount)
             {
-                if (nodeInfo.laneCounts.sharpLeft >= nodeInfo.laneCounts.sharpRight)
+                if (nodeInfo.laneCounts[Direction.SharpLeft] >= nodeInfo.laneCounts[Direction.SharpRight])
                 {
-                    nodeInfo.laneCounts.sharpLeft -= 1;
-                    nodeInfo.laneCounts.left += 1;
+                    nodeInfo.laneCounts[Direction.SharpLeft] -= 1;
+                    nodeInfo.laneCounts[Direction.Left] += 1;
                 }
                 else
                 {
-                    nodeInfo.laneCounts.sharpRight -= 1;
-                    nodeInfo.laneCounts.right += 1;
+                    nodeInfo.laneCounts[Direction.SharpRight] -= 1;
+                    nodeInfo.laneCounts[Direction.Right] += 1;
                 }
 
                 connectableLaneCount += 1;
             }
 
-            List<LaneConnectionInfo> lanesInfo = AssignLanes(inLanes.lanes.Count, nodeInfo.laneCounts.left, nodeInfo.laneCounts.forward, nodeInfo.laneCounts.right);
+            List<LaneConnectionInfo> lanesInfo = AssignLanes(inLanes.lanes.Count, nodeInfo.laneCounts[Direction.Left], nodeInfo.laneCounts[Direction.Forward], nodeInfo.laneCounts[Direction.Right]);
 
-            AccountForSharpTurnLanes(ref lanesInfo, (byte)nodeInfo.laneCounts.sharpLeft, (byte)nodeInfo.laneCounts.sharpRight);
+            AccountForSharpTurnLanes(ref lanesInfo, (byte)nodeInfo.laneCounts[Direction.SharpLeft], (byte)nodeInfo.laneCounts[Direction.SharpRight]);
 
             busLaneHandler.PostProcess(ref inLanes, ref lanesInfo);
 
@@ -587,38 +593,11 @@ namespace ImprovedLaneConnections
             return features;
         }
 
-        // Adapted from NetSegment.CountLanes 
-        private static int CountSegmentLanes(NetSegment segment,
-                                             NetInfo.Direction direction,
-                                             NetInfo.LaneType laneTypes,
-                                             VehicleInfo.VehicleType vehicleTypes)
+        private static float GetAngleDeg(Vector3 v1, Vector3 v2)
         {
-            if (segment.m_flags == NetSegment.Flags.None || segment.Info == null || segment.Info.m_lanes == null)
-            {
-                return 0;
-            }
-
-            int count = 0;
-
-            foreach (NetInfo.Lane lane in segment.Info.m_lanes)
-            {
-                if (!lane.CheckType(laneTypes, vehicleTypes))
-                {
-                    continue;
-                }
-                NetInfo.Direction laneDirection = lane.m_finalDirection;
-                if ((segment.m_flags & NetSegment.Flags.Invert) != 0)
-                {
-                    laneDirection = NetInfo.InvertDirection(laneDirection);
-                }
-
-                if ((laneDirection & direction) != 0)
-                {
-                    count += 1;
-                }
-            }
-
-            return count;
+            float dot = v1.x * v2.x + v1.z * v2.z;
+            float det = v1.x * v2.z - v1.z * v2.x;
+            return Mathf.Atan2(det, dot) * 180.0f / Mathf.PI;
         }
 
         // Adapted from NetNode.CountLanes
@@ -636,12 +615,6 @@ namespace ImprovedLaneConnections
                 return nodeInfo;
             }
 
-            const float sharpAngleThresholdDeg = 50.1f;
-            const float sharpRightThresholdDeg = 180.0f - sharpAngleThresholdDeg;
-            const float sharpLeftThresholdDeg = -sharpRightThresholdDeg;
-            const float rightThresholdDeg = 30.1f; // The base game threshold is 30
-            const float leftThresholdDeg = -30.1f;
-
             NetManager netManager = Singleton<NetManager>.instance;
             for (int i = 0; i < 8; i++)
             {
@@ -652,37 +625,16 @@ namespace ImprovedLaneConnections
                 }
 
                 var segment = netManager.m_segments.m_buffer[segmentID];
+                bool isInverted = (segment.m_flags & NetSegment.Flags.Invert) != 0;
+                bool isStartNode = segment.m_startNode == nodeID;
 
-                NetInfo.Direction direction = segment.m_endNode == nodeID ? NetInfo.Direction.Backward : NetInfo.Direction.Forward;
+                SegmentLanes lanes = SegmentAnalyser.IdentifyLanes(netManager, segment.Info, segmentID);
 
-                int count = CountSegmentLanes(segment, direction, laneTypes, vehicleTypes);
+                Vector3 vector = isStartNode ? segment.m_startDirection : segment.m_endDirection;
 
-                Vector3 vector = (direction == NetInfo.Direction.Forward) ? segment.m_startDirection : segment.m_endDirection;
+                float angleDeg = GetAngleDeg(vector, directionVector);
 
-                float dot = vector.x * directionVector.x + vector.z * directionVector.z;
-                float det = vector.x * directionVector.z - vector.z * directionVector.x;
-                float angleDeg = Mathf.Atan2(det, dot) * 180.0f / Mathf.PI;
-
-                if (angleDeg < sharpLeftThresholdDeg)
-                {
-                    nodeInfo.laneCounts.sharpLeft += count;
-                }
-                else if (angleDeg <= leftThresholdDeg)
-                {
-                    nodeInfo.laneCounts.left += count;
-                }
-                else if (angleDeg > sharpRightThresholdDeg)
-                {
-                    nodeInfo.laneCounts.sharpRight += count;
-                }
-                else if (angleDeg >= rightThresholdDeg)
-                {
-                    nodeInfo.laneCounts.right += count;
-                }
-                else
-                {
-                    nodeInfo.laneCounts.forward += count;
-                }
+                nodeInfo.AddLanes(isStartNode ^ isInverted ? lanes.forward : lanes.backward, angleDeg);
             }
 
             return nodeInfo;

@@ -14,41 +14,147 @@ namespace ImprovedLaneConnections
         SharpRight
     }
 
-    class LaneCounts
-    {
-        public int sharpLeft = 0;
-        public int left = 0;
-        public int forward = 0;
-        public int right = 0;
-        public int sharpRight = 0;
-
-        public void AddLanes(int count, Direction direction)
-        {
-            switch (direction)
-            {
-                case Direction.SharpLeft:
-                    sharpLeft += count;
-                    break;
-                case Direction.Left:
-                    left += count;
-                    break;
-                case Direction.Forward:
-                    forward += count;
-                    break;
-                case Direction.Right:
-                    right += count;
-                    break;
-                case Direction.SharpRight:
-                    sharpRight += count;
-                    break;
-                default:
-                    break;
-            }
-        }
-    }
-
     class JunctionInfo
     {
-        public LaneCounts laneCounts = new LaneCounts();
+        private Direction GetDirectionFromAngle(float angleDeg)
+        {
+            const float sharpAngleThresholdDeg = 50.1f;
+            const float sharpRightThresholdDeg = 180.0f - sharpAngleThresholdDeg;
+            const float sharpLeftThresholdDeg = -sharpRightThresholdDeg;
+            const float rightThresholdDeg = 30.1f; // Note: The default game threshold is 30
+            const float leftThresholdDeg = -30.1f;
+
+            if (angleDeg < sharpLeftThresholdDeg)
+            {
+                return Direction.SharpLeft;
+            }
+            else if (angleDeg <= leftThresholdDeg)
+            {
+                return Direction.Left;
+            }
+            else if (angleDeg > sharpRightThresholdDeg)
+            {
+                return Direction.SharpRight;
+            }
+            else if (angleDeg >= rightThresholdDeg)
+            {
+                return Direction.Right;
+            }
+            else
+            {
+                return Direction.Forward;
+            }
+        }
+
+        public int GetBusLaneCount()
+        {
+            int count = 0;
+
+            foreach (var road in roads)
+            {
+                count += road.Value.GetBusLaneCount();
+            }
+
+            return count;
+        }
+
+        public int GetLaneCount()
+        {
+            int count = 0;
+
+            foreach(var road in roads)
+            {
+                count += road.Value.GetLaneCount();
+            }
+
+            return count;
+        }
+
+        public void AddLanes(LaneInfo laneInfo, float angleDeg)
+        {
+            roads.Add(angleDeg, laneInfo);
+
+            laneCounts[GetDirectionFromAngle(angleDeg)] += laneInfo.lanes.Count;
+        }
+
+        public List< int> GetBusLaneIndices()
+        {
+            var allIndices = new List<int>();
+
+            int indexOffset = 0;
+            foreach(var road in roads)
+            {
+                var indices = road.Value.GetBusLaneIndices();
+
+                foreach(var index in indices)
+                {
+                    allIndices.Add(index + indexOffset);
+                }
+                indexOffset += road.Value.GetLaneCount();
+            }
+
+            return allIndices;
+        }
+
+        private SortedDictionary<float, LaneInfo> roads = new SortedDictionary<float, LaneInfo>();
+
+        public Dictionary<Direction, int> laneCounts = new Dictionary<Direction, int>
+            {
+                { Direction.SharpLeft, 0 },
+                { Direction.Left, 0 },
+                { Direction.Forward, 0 },
+                { Direction.Right, 0 },
+                { Direction.SharpRight, 0 }
+            };
+
+        private Direction GetLaneDirection(int index)
+        {
+            if (index < laneCounts[Direction.SharpLeft])
+            {
+                return Direction.SharpLeft;
+            }
+
+            index -= laneCounts[Direction.SharpLeft];
+
+            if (index < laneCounts[Direction.Left])
+            {
+                return Direction.Left;
+            }
+
+            index -= laneCounts[Direction.Left];
+
+            if (index < laneCounts[Direction.Forward])
+            {
+                return Direction.Forward;
+            }
+
+            index -= laneCounts[Direction.Forward];
+
+            if (index < laneCounts[Direction.Right])
+            {
+                return Direction.Right;
+            }
+
+            return Direction.SharpRight;
+        }
+
+        public List<Direction> RemoveLanes(List<int> indices)
+        {
+            var removedDirections = new List<Direction>();
+
+            foreach (var index in indices)
+            {
+                var direction = GetLaneDirection(index);
+                removedDirections.Add(direction);
+            }
+
+            // Separate loop to not invalidate indices
+            foreach (var dir in removedDirections)
+            {
+                laneCounts[dir] -= 1;
+            }
+
+            return removedDirections;
+        }
     }
 }

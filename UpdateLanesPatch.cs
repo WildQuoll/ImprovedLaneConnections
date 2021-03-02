@@ -24,7 +24,7 @@ namespace ImprovedLaneConnections
 
             NetManager netManager = Singleton<NetManager>.instance;
 
-            SegmentLanes lanes = SegmentAnalyser.IdentifyLanes(netManager, ___m_info, segmentID, data.m_lanes);
+            SegmentLanes lanes = SegmentAnalyser.IdentifyLanes(netManager, ___m_info, segmentID);
 
             // Every other segment is "inverted"
             bool invertedSegment = (netManager.m_segments.m_buffer[segmentID].m_flags & NetSegment.Flags.Invert) != 0;

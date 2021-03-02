@@ -7,6 +7,37 @@ namespace ImprovedLaneConnections
         // Position -> lane ID, sorted by postion (unlike ___m_info.m_lanes which may not be)
         public SortedDictionary<float, uint> lanes = new SortedDictionary<float, uint>();
         public List<uint> busLaneIds = new List<uint>();
+
+        public int GetBusLaneCount()
+        {
+            return busLaneIds.Count;
+        }
+
+        public int GetLaneCount()
+        {
+            return lanes.Count;
+        }
+
+        public List< int > GetBusLaneIndices()
+        {
+            var indices = new List<int>();
+
+            if(busLaneIds.Count > 0)
+            {
+                int i = 0;
+                foreach(var lane in lanes)
+                {
+                    if (busLaneIds.Contains(lane.Value))
+                    {
+                        indices.Add(i);
+                    }
+
+                    i += 1;
+                }
+            }
+
+            return indices;
+        }
     }
 
     class SegmentLanes
@@ -19,11 +50,11 @@ namespace ImprovedLaneConnections
     {
         private const NetInfo.LaneType vehicleLaneTypes = NetInfo.LaneType.Vehicle | NetInfo.LaneType.TransportVehicle;
 
-        public static SegmentLanes IdentifyLanes(NetManager netManager, NetInfo netInfo, ushort segmentID, uint firstLaneId)
+        public static SegmentLanes IdentifyLanes(NetManager netManager, NetInfo netInfo, ushort segmentID)
         {
             var lanes = new SegmentLanes();
 
-            uint laneId = firstLaneId;
+            uint laneId = netManager.m_segments.m_buffer[segmentID].m_lanes;
             foreach (var lane in netInfo.m_lanes)
             {
                 bool isVehicleLane = (lane.m_laneType & vehicleLaneTypes) != 0;

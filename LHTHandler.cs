@@ -9,8 +9,8 @@ namespace ImprovedLaneConnections
     {
         public static void Mirror(ref JunctionInfo nodeInfo)
         {
-            Swap(ref nodeInfo.laneCounts.left, ref nodeInfo.laneCounts.right);
-            Swap(ref nodeInfo.laneCounts.sharpLeft, ref nodeInfo.laneCounts.sharpRight);
+            SwapValues(ref nodeInfo.laneCounts, Direction.Left, Direction.Right);
+            SwapValues(ref nodeInfo.laneCounts, Direction.SharpLeft, Direction.SharpRight);
         }
 
         public static void Mirror(ref List<LaneConnectionInfo> info)
@@ -32,11 +32,11 @@ namespace ImprovedLaneConnections
             }
         }
 
-        private static void Swap<T>(ref T lhs, ref T rhs)
+        private static void SwapValues<T, U>(ref Dictionary< T, U > source, T index1, T index2)
         {
-            T temp = lhs;
-            lhs = rhs;
-            rhs = temp;
+            U temp = source[index1];
+            source[index1] = source[index2];
+            source[index2] = temp;
         }
 
         private static void Mirror(ref NetLane.Flags direction)
