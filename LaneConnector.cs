@@ -632,6 +632,12 @@ namespace ImprovedLaneConnections
                 }
 
                 var segment = netManager.m_segments.m_buffer[segmentID];
+
+                if(segment.Info == null)
+                {
+                    continue; // may happen if loading a map with a missing road asset
+                }
+
                 bool isInverted = (segment.m_flags & NetSegment.Flags.Invert) != 0;
                 bool isStartNode = segment.m_startNode == nodeID;
 
