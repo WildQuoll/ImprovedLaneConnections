@@ -72,7 +72,15 @@ namespace ImprovedLaneConnections
 
         public void AddLanes(LaneInfo laneInfo, float angleDeg)
         {
-            roads.Add(angleDeg, laneInfo);
+            if (roads.ContainsKey(angleDeg))
+            {
+                // Two roads with same angle, could be Road Anarchy + Vanilla Overpass Project
+                roads[angleDeg].MergeWith(laneInfo);
+            }
+            else
+            {
+                roads.Add(angleDeg, laneInfo);
+            }
 
             laneCounts[GetDirectionFromAngle(angleDeg)] += laneInfo.lanes.Count;
         }

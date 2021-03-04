@@ -49,6 +49,25 @@ namespace ImprovedLaneConnections
 
             lanes = mirroredLanes;
         }
+
+        public void MergeWith(LaneInfo other)
+        {
+            foreach(var otherLane in other.lanes)
+            {
+                var otherLanePos = otherLane.Key;
+                while(lanes.ContainsKey(otherLanePos))
+                {
+                    otherLanePos += 1e-7f;
+                }
+
+                lanes.Add(otherLanePos, otherLane.Value);
+            }
+
+            foreach(var otherBusLaneId in other.busLaneIds)
+            {
+                busLaneIds.Add(otherBusLaneId);
+            }
+        }
     }
 
     class SegmentLanes
