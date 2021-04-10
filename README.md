@@ -1,5 +1,23 @@
 **Improved Lane Connections** (ILC) is a mod for Cities: Skylines, available for [download on the Steam Workshop](https://steamcommunity.com/sharedfiles/filedetails/?id=2119310640).
 
+- [1 – Introduction](#1---introduction)
+- [2 – The algorithm](#2---the-algorithm)
+- [3 – Basic rules](#3---basic-rules)
+  * [3.1 – 1-to-1 junctions](#31---1-to-1-junctions)
+  * [3.2 – More lanes out than in](#32---more-lanes-out-than-in)
+    + [3.2.1 – 1-to-N junctions](#321---1-to-n-junctions)
+    + [3.2.2 – Other junctions](#322---other-junctions)
+  * [3.3 – More lanes in than out](#33---more-lanes-in-than-out)
+    + [3.3.1 – N-to-1 junctions](#331---n-to-1-junctions)
+    + [3.3.2 – Other junctions](#332---other-junctions)
+  * [4 – Special rules](#4---special-rules)
+    + [4.1 – Sharp turns](#41---sharp-turns)
+    + [4.2 – Bus lanes](#42---bus-lanes)
+      - [4.2.1 – OUT bus lanes](#421---out-bus-lanes)
+      - [4.2.2 – IN bus lanes](#422---in-bus-lanes)
+
+<small><i><a href='http://ecotrust-canada.github.io/markdown-toc/'>Table of contents generated with markdown-toc</a></i></small>
+
 # 1 – Introduction
 The mod changes how traffic lanes are connected on road junctions.
 
