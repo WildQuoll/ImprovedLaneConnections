@@ -1,5 +1,6 @@
 **Improved Lane Connections** (ILC) is a mod for Cities: Skylines, available for [download on the Steam Workshop](https://steamcommunity.com/sharedfiles/filedetails/?id=2119310640).
 
+## Table of contents
 - [1 – Introduction](#1--introduction)
 - [2 – The algorithm](#2--the-algorithm)
 - [3 – Basic rules](#3--basic-rules)
@@ -10,11 +11,11 @@
   * [3.3 – More lanes in than out](#33--more-lanes-in-than-out)
     + [3.3.1 – N-to-1 junctions](#331--n-to-1-junctions)
     + [3.3.2 – Other junctions](#332--other-junctions)
-  * [4 – Special rules](#4--special-rules)
-    + [4.1 – Sharp turns](#41--sharp-turns)
-    + [4.2 – Bus lanes](#42--bus-lanes)
-      - [4.2.1 – OUT bus lanes](#421--out-bus-lanes)
-      - [4.2.2 – IN bus lanes](#422--in-bus-lanes)
+- [4 – Special rules](#4--special-rules)
+  * [4.1 – Sharp turns](#41--sharp-turns)
+  * [4.2 – Bus lanes](#42--bus-lanes)
+    + [4.2.1 – OUT bus lanes](#421--out-bus-lanes)
+    + [4.2.2 – IN bus lanes](#422-in-bus-lanes)
 
 <small><i><a href='http://ecotrust-canada.github.io/markdown-toc/'>Table of contents generated with markdown-toc</a></i></small>
 
@@ -147,12 +148,12 @@ If the number of IN lanes is greater than the number of OUT lanes, but not a mul
 ![](Docs/3-to-2.jpg)
 > An example of a junction with more IN lanes than OUT.
 
-## 4 – Special rules
+# 4 – Special rules
 The rules described above are based on two assumptions:
 * There are no bus lanes involved.
 * There are no sharp turns (≥130°).
 
-### 4.1 – Sharp turns
+## 4.1 – Sharp turns
 If any sharp turns are present at a junction, the basic rules are applied as if the sharp turning OUT lanes did not exist.
 
 Then, sharp left OUT lanes are assigned to the leftmost IN lane, and sharp right OUT lanes are assigned to the rightmost IN lane.
@@ -164,8 +165,8 @@ Exception: if ignoring the sharp turning OUT lanes would mean there are more IN 
 
 > The first junction features sharp turning lanes (≥130°), the second junction does not.
 
-### 4.2 – Bus lanes
-#### 4.2.1 – OUT bus lanes
+## 4.2 – Bus lanes
+### 4.2.1 – OUT bus lanes
 If any OUT lanes are bus lanes, the basic rules are applied as if these lanes did not exist.
 
 Then, each OUT bus lane is assigned to the same IN lane as the OUT lane to its right, unless:
@@ -179,7 +180,7 @@ Exception: If there are fewer non-bus OUT lanes than IN lanes, then basic rules 
 ![](Docs/bus-out.jpg)
 > An example of a junction with outgoing, but no incoming bus lanes.
 
-#### 4.2.2 – IN bus lanes
+### 4.2.2 – IN bus lanes
 If any IN lanes are bus lanes, the basic rules are applied as if these lanes did not exist.
 
 Then, the IN bus lanes are assigned the same OUT lanes as their neighbouring non-bus IN lanes.
