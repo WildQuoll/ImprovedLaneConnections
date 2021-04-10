@@ -71,7 +71,7 @@ If the number of OUT lanes is greater than the number of IN lanes, but not a mul
 	  
 	  > The second setup is rejected, as the left IN lane connects to 1 OUT lane, whereas the right IN lane connects to 4. The maximum allowed difference is one.
 	  
-	* if two or more IN lanes share exactly the same direction (e.g. two forward-only lanes), the IN lane on the right must not connect to more OUT lanes than the its left neighbour,
+	* if two or more IN lanes share exactly the same direction (e.g. two forward-only lanes), the IN lane on the right must not connect to more OUT lanes than its left neighbour,
 	
       ![](Docs/2-to-3-good.jpg) 
       ![](Docs/2-to-3-bad.jpg)
@@ -112,7 +112,7 @@ If the number of OUT lanes is greater than the number of IN lanes, but not a mul
 		  ![](Docs/4+1-good.jpg) 
           ![](Docs/4+1-also-bad.jpg)
 		  
-		  > The first setup is preferred, as the forward OUT lanes are more evenly distributes between the two IN lanes.
+		  > The first setup is preferred, as the forward OUT lanes are more evenly distributed between the two IN lanes.
 		  
 ## 3.3 – More lanes in than out
 ### 3.3.1 – N-to-1 junctions
@@ -139,20 +139,21 @@ If any sharp turns are present at a junction, the basic rules are applied as if 
 
 Then, sharp left OUT lanes are assigned to the leftmost IN lane, and sharp right OUT lanes are assigned to the rightmost IN lane.
 
+Exception: if ignoring the sharp turning OUT lanes would mean there are more IN lanes than OUT lanes, then some or all of the sharp turning OUT lanes are instead treated as normal OUT lanes.
+
 ![](Docs/sharp.jpg) 
 ![](Docs/not-sharp.jpg)
 
-> Junction on the left features sharp turning lanes (≥130°), junction on the right does not.
-
-Exception: if ignoring the sharp turning OUT lanes would mean there are more IN lanes than OUT lanes, then some or all of the sharp turning OUT lanes are instead treated as normal OUT lanes.
+> The first junction features sharp turning lanes (≥130°), the second junction does not.
 
 ### 4.2 – Bus lanes
 #### 4.2.1 – OUT bus lanes
 If any OUT lanes are bus lanes, the basic rules are applied as if these lanes did not exist.
 
-Then, the OUT bus lane is assigned to the same IN lane as the OUT lane to its right, unless:
+Then, each OUT bus lane is assigned to the same IN lane as the OUT lane to its right, unless:
 * the OUT bus lane is the rightmost OUT lane, or
 * the OUT bus lane is a left-turn and the corresponding IN lane does not already allow turning left.
+
 In either case, the OUT bus lane is assigned to the same IN lane, as the OUT lane to its left.
 
 Exception: If there are fewer non-bus OUT lanes than IN lanes, then basic rules are applied as normal. This also applies if all OUT lanes are bus lanes.
