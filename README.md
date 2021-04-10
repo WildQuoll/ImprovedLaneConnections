@@ -69,14 +69,14 @@ If the number of OUT lanes is greater than the number of IN lanes, but not a mul
 	  ![](Docs/4+1-good.jpg) 
       ![](Docs/4+1-bad.jpg)
 	  
-	  > The setup on the right is rejected, as the left IN lane connects to 1 OUT lane, whereas the right IN lane connects to 4. The maximum allowed difference is one.
+	  > The second setup is rejected, as the left IN lane connects to 1 OUT lane, whereas the right IN lane connects to 4. The maximum allowed difference is one.
 	  
 	* if two or more IN lanes share exactly the same direction (e.g. two forward-only lanes), the IN lane on the right must not connect to more OUT lanes than the its left neighbour,
 	
       ![](Docs/2-to-3-good.jpg) 
       ![](Docs/2-to-3-bad.jpg)
 	  
-	  > The setup on the right is rejected, as the additional OUT lane(s) must be assigned to IN lanes from left-to-right.
+	  > The second setup is rejected, as the additional OUT lane(s) must be assigned to IN lanes from left-to-right.
 	  
 	* and as much as possible the following conditions are met (starting with the most desirable ones):
 		* avoid IN lanes with mixed Left+Forward+Right direction, 
@@ -84,35 +84,35 @@ If the number of OUT lanes is greater than the number of IN lanes, but not a mul
 		  ![](Docs/LFR-good.jpg) 
 		  ![](Docs/LFR-bad.jpg)
 		  
-		  > The setup on the left is preferred, as it avoids creation of a Left+Forward+Right IN lane.
+		  > The first setup is preferred, as it avoids creation of a Left+Forward+Right IN lane.
 		  
 		* avoid IN lanes with mixed Left+Forward or Left+Right direction,
 		
 	      ![](Docs/LF-good.jpg) 
           ![](Docs/LF-bad.jpg)
 		  
-		  > The setup on the left is preferred, as it avoids creation of a Left+Forward IN lane.
+		  > The first setup is preferred, as it avoids creation of a Left+Forward IN lane.
 		  
 		* avoid IN lanes with mixed Forward+Right direction,
 		
 	      ![](Docs/FR-good.jpg) 
           ![](Docs/FR-bad.jpg)
 		  
-		  > The setup on the left is preferred, as it avoids creation of a Forward+Right IN lane. Also, according to a rule mentioned earlier, the extra forward OUT lane is assigned to the leftmost IN lane.
+		  > The first setup is preferred, as it avoids creation of a Forward+Right IN lane. Also, according to a rule mentioned earlier, the extra forward OUT lane is assigned to the leftmost IN lane.
 
 		* maximise the number of IN lanes which allow Forward direction,
 
 		  ![](Docs/fwd-good.jpg) 
 		  ![](Docs/fwd-bad.jpg)
 		  
-		  > The setup on the left is preferred, as there are more forward IN lanes.
+		  > The first setup is preferred, as there are more forward IN lanes.
 
 		* equalise the number of IN-OUT connections in the same direction across all IN lanes.
 		
 		  ![](Docs/4+1-good.jpg) 
           ![](Docs/4+1-also-bad.jpg)
 		  
-		  > The setup on the left is preferred, as the forward OUT lanes are more evenly distributes between the two IN lanes.
+		  > The first setup is preferred, as the forward OUT lanes are more evenly distributes between the two IN lanes.
 		  
 ## 3.3 – More lanes in than out
 ### 3.3.1 – N-to-1 junctions
