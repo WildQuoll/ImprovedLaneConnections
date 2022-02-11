@@ -47,12 +47,21 @@ namespace ImprovedLaneConnections
         public float leftRightOutInRatioImbalance = 1.0f;
 
         // Returns true if the lane setup described by this object is preferred over 'other'. Assumes RHT
-        public bool IsBetterThan(LaneSetupFeatures other)
+        public bool IsBetterThan(LaneSetupFeatures other, bool prioritiseTurningLanes)
         {
             // Invalid lane setups should never be used.
             if (valid != other.valid)
             {
                 return valid;
+            }
+
+            if(!prioritiseTurningLanes)
+            {
+                // Prefer setups with a larger number of incoming lanes with forward direction (i.e. limit lane splitting on forward connections).
+                if (numFwdLanes != other.numFwdLanes)
+                {
+                    return numFwdLanes > other.numFwdLanes;
+                }
             }
 
             // Avoid L+F+R lanes if possible.
@@ -73,13 +82,10 @@ namespace ImprovedLaneConnections
                 return !hasLeftFwdLane;
             }
 
-            if (!hasLeftFwdLane)
+            // Avoid F+R lanes if possible
+            if (hasFwdRightLane != other.hasFwdRightLane)
             {
-                // Avoid F+R lanes if possible, but only if L+F lanes are not present.
-                if (hasFwdRightLane != other.hasFwdRightLane)
-                {
-                    return !hasFwdRightLane;
-                }
+                return !hasFwdRightLane;
             }
 
             // Prefer setups with a larger number of incoming lanes with forward direction (i.e. limit lane splitting on forward connections).
@@ -134,6 +140,12 @@ namespace ImprovedLaneConnections
 
     static class LaneConnector
     {
+        private static bool IsOneWay(NetManager manager, ushort segmentId)
+        {
+            var segment = manager.m_segments.m_buffer[segmentId];
+            return segment.Info.m_hasForwardVehicleLanes ^ segment.Info.m_hasBackwardVehicleLanes;
+        }
+
         public static void AssignLanes(LaneInfo inLanes, Vector3 outVector, ushort segmentID, ushort nodeID, NetNode junctionNode, bool lht)
         {
             var nodeInfo = AnalyseNode(junctionNode,
@@ -149,6 +161,8 @@ namespace ImprovedLaneConnections
                 return;
             }
 
+            NetManager netManager = Singleton<NetManager>.instance;
+
             if (lht)
             {
                 inLanes.Mirror();
@@ -160,7 +174,11 @@ namespace ImprovedLaneConnections
 
             AdjustSharpTurns(inLanes.GetLaneCount(), ref nodeInfo);
 
-            List<LaneConnectionInfo> lanesInfo = AssignLanes(inLanes.lanes.Count, nodeInfo.laneCounts[Direction.Left], nodeInfo.laneCounts[Direction.Forward], nodeInfo.laneCounts[Direction.Right]);
+            List<LaneConnectionInfo> lanesInfo = AssignLanes(inLanes.lanes.Count, 
+                                                             nodeInfo.laneCounts[Direction.Left],
+                                                             nodeInfo.laneCounts[Direction.Forward],
+                                                             nodeInfo.laneCounts[Direction.Right],
+                                                             IsOneWay(netManager, segmentID));
 
             AccountForSharpTurnLanes(ref lanesInfo, (byte)nodeInfo.laneCounts[Direction.SharpLeft], (byte)nodeInfo.laneCounts[Direction.SharpRight]);
 
@@ -173,7 +191,6 @@ namespace ImprovedLaneConnections
             }
 
             int i = 0;
-            NetManager netManager = Singleton<NetManager>.instance;
 
             foreach (var lane in inLanes.lanes)
             {
@@ -293,7 +310,7 @@ namespace ImprovedLaneConnections
         }
 
         // For junctions with more outgoing (out) lanes than incoming (in) lanes.
-        private static List<LaneConnectionInfo> AssignLanesMoreOutThanIn(int inLanes, int leftOut, int forwardOut, int rightOut)
+        private static List<LaneConnectionInfo> AssignLanesMoreOutThanIn(int inLanes, int leftOut, int forwardOut, int rightOut, bool isOneWay)
         {
             List<NetLane.Flags> outLanes = CreateLaneList(leftOut, forwardOut, rightOut);
 
@@ -304,6 +321,9 @@ namespace ImprovedLaneConnections
 
             // Mod.LogMessage("Initial setup:\n" + ToString(bestLanesInfo) + "\nevaluated as:\n" + bestFeatures.ToString());
 
+            // Turning lanes are prioritised on one-way roads creating a T-junction with a side road (main use case: roundabouts, motorway exits).
+            bool prioritiseTurningLanes = isOneWay && (leftOut == 0 || rightOut == 0);
+
             for (int i = 1; i < possibleLaneArrangements.Count; ++i)
             {
                 var lanesInfo = GetLaneSetup(outLanes, possibleLaneArrangements[i]);
@@ -311,7 +331,7 @@ namespace ImprovedLaneConnections
 
                 // Mod.LogMessage(ToString(lanesInfo) + "\nevaluated as:\n" + features.ToString());
 
-                if (features.IsBetterThan(bestFeatures))
+                if (features.IsBetterThan(bestFeatures, prioritiseTurningLanes))
                 {
                     // Mod.LogMessage("This is better than previous best");
                     bestFeatures = features;
@@ -331,7 +351,7 @@ namespace ImprovedLaneConnections
             return bestLanesInfo;
         }
 
-        private static List<LaneConnectionInfo> AssignLanes(int inLanes, int leftOut, int forwardOut, int rightOut)
+        private static List<LaneConnectionInfo> AssignLanes(int inLanes, int leftOut, int forwardOut, int rightOut, bool isOneWay)
         {
             int totalLanesOut = leftOut + forwardOut + rightOut;
 
@@ -345,7 +365,7 @@ namespace ImprovedLaneConnections
             }
             else // totalLanesOut > numLanes
             {
-                return AssignLanesMoreOutThanIn(inLanes, leftOut, forwardOut, rightOut);
+                return AssignLanesMoreOutThanIn(inLanes, leftOut, forwardOut, rightOut, isOneWay);
             }
         }
 
