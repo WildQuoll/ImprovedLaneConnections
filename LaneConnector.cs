@@ -73,10 +73,13 @@ namespace ImprovedLaneConnections
                 return !hasLeftFwdLane;
             }
 
-            // Avoid F+R lanes if possible.
-            if (hasFwdRightLane != other.hasFwdRightLane)
+            if (!hasLeftFwdLane)
             {
-                return !hasFwdRightLane;
+                // Avoid F+R lanes if possible, but only if L+F lanes are not present.
+                if (hasFwdRightLane != other.hasFwdRightLane)
+                {
+                    return !hasFwdRightLane;
+                }
             }
 
             // Prefer setups with a larger number of incoming lanes with forward direction (i.e. limit lane splitting on forward connections).
@@ -89,16 +92,6 @@ namespace ImprovedLaneConnections
             if (fwdConnectionImbalance != other.fwdConnectionImbalance)
             {
                 return fwdConnectionImbalance < other.fwdConnectionImbalance;
-            }
-
-            if ((rightConnectionImbalance < 2) != (other.rightConnectionImbalance < 2))
-            {
-                return rightConnectionImbalance < 2;
-            }
-
-            if ((leftConnectionImbalance < 2) != (other.leftConnectionImbalance < 2))
-            {
-                return leftConnectionImbalance < 2;
             }
 
             // Prefer setups where the number of left connections is (more) evenly distributed among incoming lanes (including L+F and L+R lanes).
