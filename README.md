@@ -98,6 +98,14 @@ If the number of OUT lanes is greater than the number of IN lanes, but not a mul
 	  > The second setup is rejected, as the additional OUT lane(s) must be assigned to IN lanes from left-to-right.
 	  
 	* and as much as possible the following conditions are met (starting with the most desirable ones):
+	    * maximise the number of IN lanes which allow Forward direction (this rule is **not** applied to one-way roads which form the main arm of a T-junction; it is also never applied if **Legacy mode** is enabled in the mod's settings) 
+		
+		  ![](Docs/2in-3out-good.jpg) 
+		  ![](Docs/2in-3out-bad.jpg)
+		  
+		  > The first setup is preferred, as it has one IN forward lane for each OUT forward lane.
+		  
+		
 		* avoid IN lanes with mixed Left+Forward+Right direction, 
 		
 		  ![](Docs/LFR-good.jpg) 
@@ -112,14 +120,14 @@ If the number of OUT lanes is greater than the number of IN lanes, but not a mul
 		  
 		  > The first setup is preferred, as it avoids creation of a Left+Forward IN lane.
 		  
-		* avoid IN lanes with mixed Forward+Right direction,
+		* if the condition above can be met, also avoid IN lanes with mixed Forward+Right direction
 		
 	      ![](Docs/FR-good.jpg) 
           ![](Docs/FR-bad.jpg)
 		  
 		  > The first setup is preferred, as it avoids creation of a Forward+Right IN lane. Also, according to a rule mentioned earlier, the extra forward OUT lane is assigned to the leftmost IN lane.
 
-		* maximise the number of IN lanes which allow Forward direction,
+		* maximise the number of IN lanes which allow Forward direction (this is the same condition as one listed above, only this time, it applies to **all** junctions, albeit with a lower priority),
 
 		  ![](Docs/fwd-good.jpg) 
 		  ![](Docs/fwd-bad.jpg)
@@ -133,6 +141,20 @@ If the number of OUT lanes is greater than the number of IN lanes, but not a mul
 		  
 		  > The first setup is preferred, as the forward OUT lanes are more evenly distributed between the two IN lanes.
 		  
+Now, it is unlikely that all of the above conditions can be satisfied at once. Here is a slightly more complex example that illustrates how the rules are applied in practice: 
+
+ ![](Docs/complex-bad.jpg) 
+		 
+ > The setup above is rejected, because the middle IN lane only connects to 1 OUT lane, while the other IN lanes connect to 3 OUT lanes each. With 3 IN lanes and 7 OUT lanes in total, two of the lanes **must** connect to 2 OUT lanes each, and one of the IN lanes **must** connect to 3 OUT lanes.
+		  
+ ![](Docs/complex-also-bad.jpg) 
+		  
+ > The setup above is rejected, because the "avoid IN lanes with mixed Left+Forward or Left+Right direction" condition is not met, and a better alternative exists...
+		  
+ ![](Docs/complex-good.jpg) 
+		  
+ > This setup is chosen, because it does satisfy the "avoid IN lanes with mixed Left+Forward or Left+Right direction" condition, and no better alternative exists.
+
 ## 3.3 – More lanes in than out
 ### 3.3.1 – N-to-1 junctions
 If the number of IN lanes is a multiple of the OUT lanes, then each OUT lane is connected to an equal number of IN lanes.
