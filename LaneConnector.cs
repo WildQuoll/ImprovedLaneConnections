@@ -322,7 +322,8 @@ namespace ImprovedLaneConnections
             // Mod.LogMessage("Initial setup:\n" + ToString(bestLanesInfo) + "\nevaluated as:\n" + bestFeatures.ToString());
 
             // Turning lanes are prioritised on one-way roads creating a T-junction with a side road (main use case: roundabouts, motorway exits).
-            bool prioritiseTurningLanes = isOneWay && (leftOut == 0 || rightOut == 0);
+            // (In legacy mode: turning lanes are always prioritised)
+            bool prioritiseTurningLanes = Mod.config.IsLegacyMode() || (isOneWay && (leftOut == 0 || rightOut == 0));
 
             for (int i = 1; i < possibleLaneArrangements.Count; ++i)
             {
